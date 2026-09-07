@@ -22,6 +22,7 @@ import {
 import { Loader2 } from "lucide-react";
 import WaterDropGrid from "./WaterDropGrid";
 import { supabase } from "@/utiils/supabase";
+import { apiClient } from "@/utiils/api";
 
 
 const genders = [
@@ -119,14 +120,14 @@ const Profile = () => {
           error
         } = await supabase.auth.getUser();
 
-        if(error) {
+        if(error || !user) {
           console.error("Error fetching user details:", error);
           window.location.href = "/login";
           return;
-
         }
 
-        const { data: userData } = await supabase.from("users").select("*").eq("user_id", user?.id).single();
+        const userResponse = await apiClient.getUserById(user.id);
+        const userData = userResponse.data;
 
         if(userData) {
           setUserDetails(userData);
@@ -152,23 +153,22 @@ const Profile = () => {
   const onSubmit = async (data: any) => {
     try {
       const { data: { user }, error } = await supabase.auth.getUser();
-      if(error) {
+      if(error || !user) {
         console.error("Error fetching user details:", error);
         return;
       }
 
-      const { error: upsertError } = await supabase.from("users").update({
-        user_id: user?.id,
+      const updateResponse = await apiClient.updateProfile({
         name: data.name,
         roll_number: data.rollNumber,
         email: data.personalEmail,
         hostel: data.hostel,
         mess: data.mess,
         gender: data.gender,
-      }).eq("user_id", user?.id);
+      });
 
-      if(upsertError) {
-        console.error("Error updating user details:", upsertError);
+      if(!updateResponse.success) {
+        console.error("Error updating user details:", updateResponse.message);
         return;
       }
 

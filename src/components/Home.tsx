@@ -4,19 +4,8 @@ import { Alert, AlertDescription } from "./ui/alert";
 import { ArrowUpRight } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/utiils/supabase";
+import { apiClient } from "@/utiils/api";
 import NavBar from "./Navbar";
-import { toast } from "sonner";
-
-const handleToast = () => {
-     toast("Whoops!", {
-        description: "Registration are closed, See you next year!!",
-      });
-}
-const handleProblemStatement = () => {
-     toast("Whoops!", {
-        description: "Problem Statement are not available right now",
-      });
-}
 
 
 const Home = () => {
@@ -35,30 +24,44 @@ const Home = () => {
                 data: { user },
                 error: userError,
             } = await supabase.auth.getUser();
-            if (userError) {
-                console.error(userError);
+            if (userError || !user) {
+                if (userError) console.error(userError);
                 setLoading(false);
                 return;
             }
-            const { data: userData, error: userDataError } = await supabase
-                .from("users")
-                .select("*")
-                .eq("user_id", user?.id)
-                .single();
-            if (userDataError) {
-                console.error(userDataError);
+
+            const newName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split("@")[0] || "";
+            const newPfp = user.user_metadata?.avatar_url || user.user_metadata?.picture || "";
+
+            try {
+                const response = await apiClient.syncUser({
+                    user_id: user.id,
+                    email: user.email,
+                    name: newName,
+                    pfp: newPfp,
+                });
+
+                if (!response.success || !response.data) {
+                    console.error("Failed to sync user with backend:", response.message);
+                    setLoading(false);
+                    return;
+                }
+
+                const userData = response.data;
+                setLoggedIn(true);
+                setUsername(userData?.name);
+                setIsPartofTeam(userData?.team_id ? true : false);
+                setTeamId(userData?.team_id);
+                setHasRollNumber(!!userData?.roll_number);
+
+                if (!userData?.roll_number) {
+                    window.location.href = "/profile";
+                }
+            } catch (error) {
+                console.error("Error communicating with backend:", error);
+            } finally {
                 setLoading(false);
-                return;
             }
-            setLoggedIn(true);
-            setUsername(userData?.name);
-            setIsPartofTeam(userData?.team_id ? true : false);
-            setTeamId(userData?.team_id);
-            setHasRollNumber(!!userData?.roll_number);
-            if (!userData?.roll_number) {
-                window.location.href = "/profile";
-            }
-            setLoading(false);
         };
         fetchUser();
     }, []);
@@ -106,14 +109,20 @@ const Home = () => {
                                 <div className="space-y-4">
                                     <Button
                                         className="w-full py-3 bg-white text-black rounded-lg font-bold hover:bg-gray-200 transition duration-300 flex items-center justify-center gap-2"
-                                        onClick={handleToast}
+                                        onClick={() =>
+                                            (window.location.href =
+                                                "/create-team")
+                                        }
                                     >
                                         <span>Create Team</span>
                                         <ArrowUpRight className="h-5 w-5" />
                                     </Button>
                                     <Button
                                         className="w-full py-3 bg-white text-black rounded-lg font-bold hover:bg-gray-200 transition duration-300 flex items-center justify-center gap-2"
-                                        onClick={handleToast}
+                                        onClick={() =>
+                                            (window.location.href =
+                                                "/join-team")
+                                        }
                                     >
                                         <span>Join Team</span>
                                         <ArrowUpRight className="h-5 w-5" />

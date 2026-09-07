@@ -1,0 +1,169 @@
+package handlers
+
+import (
+	"github.com/Anshul1310/tf-register/internals/models"
+	"github.com/Anshul1310/tf-register/internals/service"
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+)
+
+type UserHandler struct {
+	userService *service.UserService
+}
+
+func NewUserHandler(userService *service.UserService) *UserHandler {
+	return &UserHandler{
+		userService: userService,
+	}
+}
+
+func (userHandler *UserHandler) GetCurrentUser(requestContext *fiber.Ctx) error {
+	authenticatedUserValue := requestContext.Locals("userID")
+	if authenticatedUserValue == nil {
+		return requestContext.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Authentication required",
+		})
+	}
+
+	authenticatedUserID := authenticatedUserValue.(uuid.UUID)
+	userProfile, retrieveError := userHandler.userService.GetUserProfile(requestContext.Context(), authenticatedUserID)
+	if retrieveError != nil {
+		return requestContext.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": retrieveError.Error(),
+		})
+	}
+
+	return requestContext.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success": true,
+		"data":    userProfile,
+	})
+}
+
+func (userHandler *UserHandler) GetUserByID(requestContext *fiber.Ctx) error {
+	userIdentifierParameter := requestContext.Params("id")
+	parsedUserUUID, parseError := uuid.Parse(userIdentifierParameter)
+	if parseError != nil {
+		return requestContext.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Invalid user ID format: must be a valid UUID",
+		})
+	}
+
+	userProfile, retrieveError := userHandler.userService.GetUserProfile(requestContext.Context(), parsedUserUUID)
+	if retrieveError != nil {
+		return requestContext.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"success": false,
+			"message": retrieveError.Error(),
+		})
+	}
+
+	return requestContext.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success": true,
+		"data":    userProfile,
+	})
+}
+
+func (userHandler *UserHandler) SyncUser(requestContext *fiber.Ctx) error {
+	var syncUserRequest models.SyncUserRequest
+	bodyParseError := requestContext.BodyParser(&syncUserRequest)
+	if bodyParseError != nil {
+		return requestContext.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Failed to parse request payload: " + bodyParseError.Error(),
+		})
+	}
+
+	// If user_id is not in payload, check authenticated context
+	if syncUserRequest.UserID == uuid.Nil {
+		authenticatedUserValue := requestContext.Locals("userID")
+		if authenticatedUserValue != nil {
+			syncUserRequest.UserID = authenticatedUserValue.(uuid.UUID)
+		}
+	}
+
+	if syncUserRequest.UserID == uuid.Nil {
+		return requestContext.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "User ID is required",
+		})
+	}
+
+	syncedUserRecord, syncError := userHandler.userService.SyncUser(requestContext.Context(), syncUserRequest)
+	if syncError != nil {
+		return requestContext.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": syncError.Error(),
+		})
+	}
+
+	return requestContext.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success": true,
+		"message": "User synchronized successfully",
+		"data":    syncedUserRecord,
+	})
+}
+
+func (userHandler *UserHandler) UpdateProfile(requestContext *fiber.Ctx) error {
+	authenticatedUserValue := requestContext.Locals("userID")
+	if authenticatedUserValue == nil {
+		return requestContext.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Authentication required",
+		})
+	}
+
+	authenticatedUserID := authenticatedUserValue.(uuid.UUID)
+
+	var profileUpdateRequest models.UpdateUserProfileRequest
+	bodyParseError := requestContext.BodyParser(&profileUpdateRequest)
+	if bodyParseError != nil {
+		return requestContext.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Failed to parse profile update request: " + bodyParseError.Error(),
+		})
+	}
+
+	updatedUserProfile, updateError := userHandler.userService.UpdateProfile(
+		requestContext.Context(),
+		authenticatedUserID,
+		profileUpdateRequest,
+	)
+	if updateError != nil {
+		return requestContext.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"success": false,
+			"message": updateError.Error(),
+		})
+	}
+
+	return requestContext.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success": true,
+		"message": "Profile updated successfully",
+		"data":    updatedUserProfile,
+	})
+}
+
+func (userHandler *UserHandler) LeaveTeam(requestContext *fiber.Ctx) error {
+	authenticatedUserValue := requestContext.Locals("userID")
+	if authenticatedUserValue == nil {
+		return requestContext.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"success": false,
+			"message": "Authentication required",
+		})
+	}
+
+	authenticatedUserID := authenticatedUserValue.(uuid.UUID)
+	leaveError := userHandler.userService.LeaveTeam(requestContext.Context(), authenticatedUserID)
+	if leaveError != nil {
+		return requestContext.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": leaveError.Error(),
+		})
+	}
+
+	return requestContext.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success": true,
+		"message": "Successfully left the team",
+	})
+}

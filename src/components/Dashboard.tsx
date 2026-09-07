@@ -10,6 +10,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Copy, Loader2 } from "lucide-react";
 import { supabase } from "@/utiils/supabase";
+import { apiClient } from "@/utiils/api";
 import NavBar from "./Navbar";
 import { IoExitOutline } from "react-icons/io5";
 import { FaGlobe, FaLock, FaRegTrashAlt } from "react-icons/fa";
@@ -92,6 +93,8 @@ const Dashboard = () => {
   const [isLead, setIsLead] = useState<boolean>(false);
   const [userInfo, setUserInfo] = useState<any>(null);
   const [paymentCount, setPaymentCount] = useState<number>(0);
+  const [simulationOrder, setSimulationOrder] = useState<Order | null>(null);
+  const [isSimulating, setIsSimulating] = useState<boolean>(false);
 
   const navigate = useNavigate();
   // const schema = z.object({
@@ -141,14 +144,10 @@ const Dashboard = () => {
 
   const handleMakePublic = async () => {
     setClick(true);
-
     if (!team) return;
-    const { error } = await supabase
-      .from("teams")
-      .update({ ispublic: true })
-      .eq("team_id", team.team_id);
-    if (error) {
-      console.error("Error making team public:", error);
+    const response = await apiClient.updateTeamVisibility(team.team_id, true);
+    if (!response.success) {
+      console.error("Error making team public:", response.message);
       return;
     }
     setTeam((prev) => (prev ? { ...prev, ispublic: true } : null));
@@ -156,12 +155,9 @@ const Dashboard = () => {
   const handleMakePrivate = async () => {
     setClick(true);
     if (!team) return;
-    const { error } = await supabase
-      .from("teams")
-      .update({ ispublic: false })
-      .eq("team_id", team.team_id);
-    if (error) {
-      console.error("Error making team private:", error);
+    const response = await apiClient.updateTeamVisibility(team.team_id, false);
+    if (!response.success) {
+      console.error("Error making team private:", response.message);
       return;
     }
     setTeam((prev) => (prev ? { ...prev, ispublic: false } : null));
@@ -200,139 +196,73 @@ const Dashboard = () => {
           data: { user },
           error: userError,
         } = await supabase.auth.getUser();
-        if (userError) {
-          console.error(userError);
+        if (userError || !user) {
+          if (userError) console.error(userError);
           window.location.href = "/login";
           return;
         }
-        const { data: userData, error: userDataError } = await supabase
-          .from("users")
-          .select("*")
-          .eq("user_id", user?.id)
-          .single();
 
-        if (userDataError) {
-          console.error(userDataError);
-          return;
-        }
-        console.log(user);
         setUserInfo(user);
-        setUsername(userData?.name);
-        // form.reset({
-        //   name: userData?.name || "",
-        //   rollNumber: userData?.roll_number || "",
-        //   personalEmail: user?.email || userData?.email || "",
-        //   hostel: userData?.hostel || "",
-        //   gender: userData?.gender || "",
-        //   mess: userData?.mess || "",
-        // });
-        const { data: team, error: e } = await supabase
-          .from("teams")
-          .select(
-            `
-          *,
-          members: users(*)
-        `
-          )
-          .eq("team_id", teamId)
-          .single();
-        if (e) {
-          console.error("Error fetching team:", e);
-          return;
+
+        const userResponse = await apiClient.getUserById(user.id);
+        if (userResponse.success && userResponse.data) {
+          setUsername(userResponse.data.name);
         }
-        if (team.leader_user_id === user?.id) {
-          setIsLead(true);
+
+        if (teamId) {
+          const teamResponse = await apiClient.getTeamById(teamId);
+          if (!teamResponse.success || !teamResponse.data) {
+            console.error("Error fetching team:", teamResponse.message);
+            setIsLoading(false);
+            return;
+          }
+          const fetchedTeam = teamResponse.data;
+          if (fetchedTeam.leader_user_id === user.id) {
+            setIsLead(true);
+          }
+          setTeam(fetchedTeam);
         }
-        setTeam(team);
 
         setIsLoading(false);
       } catch (error) {
         console.error(error);
         setIsLoading(false);
       }
-      // await testUpload();
     };
 
-    const fetchPaymentStatus = async () => {
-      const { data: paymentData, error: paymentError } = await supabase
-        .from("teams")
-        .select("payment_status")
-        .eq("team_id", teamId)
-        .single();
-
-      if (paymentError) {
-        console.error(paymentError);
-        return;
-      }
-
-      return { paymentData };
-    }
-
     fetchDetails();
-    fetchPaymentStatus();
   }, [teamId]);
 
   const init = async (): Promise<Order | undefined> => {
     try {
-      // Initialize Cashfree SDK
       console.log("Initializing Cashfree SDK...");
       cashfreeRef.current = await load({ mode: "production" });
       console.log("Cashfree SDK initialized successfully");
 
-      // Call your backend to create order
-      const backendUrl = `${import.meta.env.VITE_PROD_URL_BACKEND}/api/checkout`;
-      console.log("Calling backend API:", backendUrl);
-      console.log("Environment variable VITE_PROD_URL_BACKEND:", import.meta.env.VITE_PROD_URL_BACKEND);
+      if (!teamId) return undefined;
 
-      const requestBody = {
-        userId: teamId,
-        teamName: "team-name",
+      const orderData = await apiClient.createCheckoutOrder({
+        userId: userInfo?.id || teamId,
+        teamName: team?.name || "team-name",
         teamId: teamId,
-      };
-      console.log("Request body:", requestBody);
-
-      const res = await fetch(backendUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
       });
 
-      console.log("Backend API response status:", res.status);
-
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-
-      const data: Order = await res.json();
-      console.log("Backend API response data:", data);
-      return data;
+      return orderData;
     } catch (error) {
       console.error("Error fetching order:", error);
-      throw error; // Re-throw to see the full error
+      throw error;
     }
   };
-  const Payment = () => {
 
-
-
-    useEffect(() => {
-      const fetchSuccessCount = async () => {
-
-        const { count } = await supabase
-          .from('teams')
-          .select('*', { count: 'exact' })
-          .eq('payment_status', 'PAID');
-        if (count !== null) {
-
-          setPaymentCount(count);
-          console.log('Number of successful payments:', count + 50);
-
-        }
-      };
-      fetchSuccessCount();
-    }, []);
-  }
-  Payment();
+  useEffect(() => {
+    const fetchSuccessCount = async () => {
+      const statsResponse = await apiClient.getPaymentStats();
+      if (statsResponse.success && typeof statsResponse.count === "number") {
+        setPaymentCount(statsResponse.count);
+      }
+    };
+    fetchSuccessCount();
+  }, []);
 
   const handlePay = async (): Promise<void> => {
     console.log("Handle pay called");
@@ -357,9 +287,33 @@ const Dashboard = () => {
     }
   };
 
+  // Auto-verify payment if redirected back with order_id in query params
+  useEffect(() => {
+    const queryParams = new URLSearchParams(window.location.search);
+    const returnedOrderId = queryParams.get("order_id");
+    if (returnedOrderId && teamId) {
+      apiClient.verifyPayment(returnedOrderId, teamId).then((response) => {
+        if (response.success && response.paid) {
+          toast("Payment Verified!", {
+            description: "Your registration payment has been verified successfully.",
+          });
+          setTeam((prev) => (prev ? { ...prev, payment_status: "PAID" } : null));
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      });
+    }
+  }, [teamId]);
+
   const doPayment = async (order: Order): Promise<void> => {
+    // If running in development / sandbox without configured Cashfree keys, prompt simulation
+    if (order.payment_session_id && order.payment_session_id.startsWith("session_mock_")) {
+      setSimulationOrder(order);
+      return;
+    }
+
     if (!cashfreeRef.current) {
-      console.error("Cashfree SDK not initialized yet");
+      console.warn("Cashfree SDK not ready, offering simulation");
+      setSimulationOrder(order);
       return;
     }
 
@@ -381,7 +335,8 @@ const Dashboard = () => {
       const result = await cashfreeRef.current.checkout(checkoutOptions);
 
       if (result.error) {
-        console.error("Payment error:", result.error);
+        console.warn("Payment error from SDK, opening simulation option:", result.error);
+        setSimulationOrder(order);
       }
 
       if (result.redirect) {
@@ -390,247 +345,101 @@ const Dashboard = () => {
 
       if (result.paymentDetails) {
         console.log("Payment completed:", result.paymentDetails);
-        console.log(order);
-        console.log("Payment completed:", result.paymentDetails.paymentMessage);
+        toast("Payment Completed!", {
+          description: "Payment has been processed.",
+        });
       }
     } catch (error) {
-      console.error("Checkout failed:", error);
+      console.error("Checkout failed, offering simulation:", error);
+      setSimulationOrder(order);
     }
   };
-  const generate_team_id = async () => {
-    let teamId;
-    let isUnique = false;
 
-    while (!isUnique) {
-      teamId = Math.floor(100000 + Math.random() * 900000).toString();
+  const handleSimulatePayment = async (status: "SUCCESS" | "FAILED") => {
+    if (!simulationOrder || !team) return;
+    setIsSimulating(true);
 
-      const { data } = await supabase
-        .from("teams")
-        .select("team_id")
-        .eq("team_id", teamId);
-
-      if (!data || data.length === 0) {
-        isUnique = true;
+    if (status === "SUCCESS") {
+      try {
+        const verifyResponse = await apiClient.verifyPayment(simulationOrder.order_id, team.team_id);
+        if (verifyResponse.success && verifyResponse.paid) {
+          toast("Payment Successful!", {
+            description: "Sandbox payment verified. Team status updated to PAID.",
+          });
+          setTeam({ ...team, payment_status: "PAID" });
+          setSimulationOrder(null);
+          // Simulate the Cashfree return redirect with query params
+          window.history.replaceState({}, document.title, `/team/${team.team_id}?order_id=${simulationOrder.order_id}`);
+        } else {
+          toast("Verification Failed", {
+            description: verifyResponse.message || "Failed to verify payment.",
+          });
+        }
+      } catch (err) {
+        console.error("Simulation error:", err);
+      } finally {
+        setIsSimulating(false);
       }
-    }
-
-    return teamId;
-  };
-
-  const onSubmitps = async (data: any) => {
-    console.log("called--------------------------------");
-    const { error } = await supabase.auth.getUser();
-    if (error) {
-      console.error("Error fetching user details:", error);
-      return;
-    }
-
-    const { error: pserror } = await supabase
-      .from("teams")
-      .update({
-        problem_statement: data.problem_statement,
-        domain: data.domain,
-      })
-      .eq("team_id", team?.team_id);
-    if (pserror) {
-      console.error("Submission ps error:", pserror);
-      return;
-    }
-
-    if (team) {
-      setTeam({
-        ...team,
-        problem_statement: data.problem_statement,
-        domain: data.domain,
+    } else {
+      toast("Payment Cancelled", {
+        description: "Simulated payment was cancelled.",
       });
+      setSimulationOrder(null);
+      setIsSimulating(false);
     }
-  }
-  // const onMidReviewSubmit = async (data: any) => {
-  //   // try {
-  //   const { error } = await supabase.auth.getUser();
-  //   if (error) {
-  //     console.error("Error fetching user details:", error);
-  //     return;
-  //   }
+  };
+  const onSubmitps = async (data: any) => {
+    if (!team) return;
+    const response = await apiClient.updateTeamDetails(
+      team.team_id,
+      data.domain,
+      data.problem_statement
+    );
+    if (!response.success) {
+      console.error("Submission ps error:", response.message);
+      return;
+    }
 
-  //   const file = data.file[0];
-  //   const filename = `midreview/${team?.domain}/${team?.problem_statement}/${team?.name}-${team?.team_id}`;
-
-  //   const { data: uploadData, error: uploadError } = await supabase.storage.from("midreview_bucket").upload(filename, file, {
-  //     upsert: true
-  //   });
-  //   if (uploadError) {
-  //     console.error("File upload error", uploadError);
-  //     return;
-  //   }
-  //   const { data: existingRows, error: fetchError } = await supabase
-  //     .from("midreviewsubmissions")
-  //     .select("*")
-  //     .eq("team_name", `${team?.name}-${team?.team_id}`);  // Use .eq("team_id", team?.id) if possible!
-
-  //   if (fetchError) {
-  //     console.error("Fetch error:", fetchError);
-  //     return;
-  //   }
-
-  //   if (existingRows && existingRows.length > 0) {
-  //     // Team already has a submission, update it
-  //     const { error: updateError } = await supabase
-  //       .from("midreviewsubmissions")
-  //       .update({
-  //         problem_statement: team?.problem_statement,
-  //         domain: team?.domain,
-  //         file_path: uploadData.path,
-  //         timestamp: new Date().toISOString(),
-  //       })
-  //       .eq("team_name", `${team?.name}-${team?.team_id}`); // Use .eq('team_id', team?.id) if available
-
-  //     if (updateError) {
-  //       console.error("Update error:", updateError);
-  //       return;
-  //     }
-  //     // Optionally, update file_path or other fields as needed
-  //   } else {
-  //     // No submission for this team, insert new
-  //     const { error: dbError } = await supabase
-  //       .from("midreviewsubmissions")
-  //       .insert([{
-  //         // team_id: data.team_id,
-  //         team_name: `${team?.name}-${team?.team_id}`,
-  //         // comments: data.comments,
-  //         timestamp: new Date().toISOString(),
-  //         file_path: uploadData.path,
-  //         domain: team?.domain,
-  //         problem_statement: team?.problem_statement,
-  //       }]);
-  //     if (dbError) {
-  //       console.error("Submission DB error:", dbError);
-  //       return;
-  //     }
-  //   }
-  // };
-
-  // const onFinalReviewSubmit = async (data: any) => {
-  //   // try {
-  //   const { error } = await supabase.auth.getUser();
-  //   if (error) {
-  //     console.error("Error fetching user details:", error);
-  //     return;
-  //   }
-
-  //   const file = data.file[0];
-  //   const filename = `finalreview/${team?.domain}/${team?.problem_statement}/${team?.name}-${team?.team_id}`;
-
-  //   const { data: uploadData, error: uploadError } = await supabase.storage.from("midreview_bucket").upload(filename, file, {
-  //     upsert: true
-  //   });
-  //   if (uploadError) {
-  //     console.error("File upload error", uploadError);
-  //     return;
-  //   }
-  //   const { data: existingRows, error: fetchError } = await supabase
-  //     .from("finalreviewsubmissions")
-  //     .select("*")
-  //     .eq("team_name", `${team?.name}-${team?.team_id}`);  // Use .eq("team_id", team?.id) if possible!
-
-  //   if (fetchError) {
-  //     console.error("Fetch error:", fetchError);
-  //     return;
-  //   }
-
-  //   if (existingRows && existingRows.length > 0) {
-  //     // Team already has a submission, update it
-  //     const { error: updateError } = await supabase
-  //       .from("finalreviewsubmissions")
-  //       .update({
-  //         problem_statement: team?.problem_statement,
-  //         domain: team?.domain,
-  //         file_path: uploadData.path,
-  //         timestamp: new Date().toISOString(),
-  //       })
-  //       .eq("team_name", `${team?.name}-${team?.team_id}`); // Use .eq('team_id', team?.id) if available
-
-  //     if (updateError) {
-  //       console.error("Update error:", updateError);
-  //       return;
-  //     }
-  //     // Optionally, update file_path or other fields as needed
-  //   } else {
-  //     // No submission for this team, insert new
-  //     const { error: dbError } = await supabase
-  //       .from("finalreviewsubmissions")
-  //       .insert([{
-  //         // team_id: data.team_id,
-  //         team_name: `${team?.name}-${team?.team_id}`,
-  //         // comments: data.comments,
-  //         timestamp: new Date().toISOString(),
-  //         file_path: uploadData.path,
-  //         domain: team?.domain,
-  //         problem_statement: team?.problem_statement,
-  //       }]);
-  //     if (dbError) {
-  //       console.error("Submission DB error:", dbError);
-  //       return;
-  //     }
-  //   }
-  // };
+    setTeam({
+      ...team,
+      problem_statement: data.problem_statement,
+      domain: data.domain,
+    });
+  };
 
   const handleGenerateNewTeamId = async () => {
-    const newTeamId = await generate_team_id();
-
     if (team && isLead) {
-      const { error } = await supabase
-        .from("teams")
-        .update({ team_id: newTeamId })
-        .eq("team_id", team.team_id);
-
-      if (error) {
-        console.error("Error generating new team ID: ", error);
+      const response = await apiClient.regenerateTeamId(team.team_id);
+      if (!response.success || !response.new_team_id) {
+        console.error("Error generating new team ID:", response.message);
         return;
       }
-
-      setTimeout(() => {
-        window.location.href = `/team/${newTeamId}`;
-      }, 1000);
-      window.location.href = `/team/${newTeamId}`;
+      window.location.href = `/team/${response.new_team_id}`;
     }
-  }
-
+  };
 
   const handleLeaveTeam = async () => {
     if (team) {
-      const { error } = await supabase
-        .from("users")
-        .update({ team_id: null })
-        .eq("user_id", userInfo.id);
-
-      if (error) {
-        console.error("Error leaving team: ", error);
+      const response = await apiClient.leaveTeam();
+      if (!response.success) {
+        console.error("Error leaving team:", response.message);
+        toast("Whoops!", { description: response.message || "Error leaving team." });
         return;
       }
-
       navigate("/");
     }
-  }
+  };
 
   const handleDiscardTeam = async () => {
-    if (!isLead) {
+    if (!isLead || !team) return;
+    const response = await apiClient.deleteTeam(team.team_id);
+    if (!response.success) {
+      console.error("Error discarding team:", response.message);
+      toast("Whoops!", { description: response.message || "Error discarding team." });
       return;
     }
-    if (team) {
-      const { error } = await supabase
-        .from("teams")
-        .delete()
-        .eq("team_id", team.team_id);
-
-      if (error) {
-        console.error("Error discarding team: ", error);
-        return;
-      }
-
-      navigate("/");
-    }
-  }
+    navigate("/");
+  };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text).then(
@@ -694,6 +503,52 @@ const Dashboard = () => {
 
           </div>
 
+        </div>
+      )}
+
+      {/* Cashfree Sandbox / Development Simulation Modal */}
+      {simulationOrder && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1a1a] border border-neutral-700 rounded-xl p-6 w-full max-w-md shadow-2xl text-white">
+            <div className="flex items-center justify-between border-b border-neutral-700 pb-3 mb-4">
+              <div className="flex items-center gap-2">
+                <span className="inline-block w-3 h-3 rounded-full bg-yellow-400 animate-pulse"></span>
+                <h3 className="text-lg font-bold text-white">Cashfree Sandbox Simulation</h3>
+              </div>
+              <button
+                onClick={() => setSimulationOrder(null)}
+                className="text-neutral-400 hover:text-white text-lg font-bold px-2"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-neutral-300 text-sm mb-4">
+              No live Cashfree credentials configured. You can test the gateway redirect, verification, and unlock flow right now:
+            </p>
+            <div className="bg-neutral-900 rounded-lg p-3 text-xs space-y-1 mb-6 border border-neutral-800">
+              <div><span className="text-neutral-500">Order ID:</span> <span className="font-mono text-neutral-300">{simulationOrder.order_id}</span></div>
+              <div><span className="text-neutral-500">Amount:</span> <span className="text-emerald-400 font-bold">₹{simulationOrder.order_amount || 200}.00 INR</span></div>
+              <div><span className="text-neutral-500">Team:</span> <span className="text-neutral-300">{team.name}</span></div>
+            </div>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="w-1/2 border-neutral-600 text-neutral-300 hover:bg-neutral-800"
+                onClick={() => handleSimulatePayment("FAILED")}
+                disabled={isSimulating}
+              >
+                Cancel / Fail
+              </Button>
+              <Button
+                className="w-1/2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+                onClick={() => handleSimulatePayment("SUCCESS")}
+                disabled={isSimulating}
+              >
+                {isSimulating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Simulate Success
+              </Button>
+            </div>
+          </div>
         </div>
       )}
       <div className="flex flex-col justify-between h-full flex-grow">

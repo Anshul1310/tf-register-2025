@@ -7,6 +7,7 @@ import {
     InputOTPSlot,
 } from "@/components/ui/input-otp";
 import { supabase } from "@/utiils/supabase";
+import { apiClient } from "@/utiils/api";
 import NavBar from "./Navbar";
 import { toast } from "sonner";
 
@@ -55,34 +56,22 @@ const JoinTeam = () => {
                     data: { user },
                     error: userError,
                 } = await supabase.auth.getUser();
-                if (userError) {
-                    console.error(userError);
+                if (userError || !user) {
+                    if (userError) console.error(userError);
                     return;
                 }
-                const { data: userData, error: userDataError } = await supabase
-                    .from("users")
-                    .select("*")
-                    .eq("user_id", user?.id)
-                    .single();
-                if (userDataError) {
-                    console.error(userDataError);
-                    return;
+                const userResponse = await apiClient.getUserById(user.id);
+                if (userResponse.success && userResponse.data) {
+                    setUsername(userResponse.data.name);
                 }
-                setUsername(userData?.name);
 
-                const { data: publicTeamsData, error: publicTeamsError } = await supabase
-                    .from("teams")
-                    .select("team_id, name, contact, domain")
-                    .eq("ispublic", true);
-
-                if (publicTeamsError) {
-                    console.error("Error fetching public teams:", publicTeamsError);
-                } else {
-                    const formattedTeams = publicTeamsData.map(team => ({
+                const publicTeamsResponse = await apiClient.getPublicTeams();
+                if (publicTeamsResponse.success && publicTeamsResponse.data) {
+                    const formattedTeams = publicTeamsResponse.data.map((team: any) => ({
                         team_id: team.team_id,
                         team_name: team.name,
                         contact: team.contact,
-                        domain: team.domain
+                        domain: team.domain,
                     }));
                     setPublicTeams(formattedTeams);
                     setAllTeams(formattedTeams);
@@ -109,58 +98,14 @@ const JoinTeam = () => {
         }
 
         try {
-            const {
-                data: { user },
-                error: userError,
-            } = await supabase.auth.getUser();
-            if (userError) {
-                console.error(userError);
-                return;
-            }
-            const { data: userData, error: userDataError } = await supabase
-                .from("users")
-                .select("*")
-                .eq("user_id", user?.id)
-                .single();
-            if (userDataError) {
-                console.error(userDataError);
-                return;
-            }
-            if (userData?.team_id) {
-                toast("Uh oh!", {
-                    description: "You are already part of a team.",
-                });
-                return;
-            }
-
-            const { data: memberCount, error: memberCountError } = await supabase.rpc('count_team_members', { team_id_input: teamCode });
-            console.log("memberCount", memberCount);
-            if (memberCountError) {
-                console.error("Error joining team", memberCountError);
+            const joinResponse = await apiClient.joinTeam(teamCode);
+            if (!joinResponse.success) {
                 toast("Whoops!", {
-                    description: "Error joining team. Please try again.",
+                    description: joinResponse.message || "Error joining team. Please try again.",
                 });
                 return;
             }
 
-            if (memberCount && memberCount >= 5) {
-                toast("Maximum capacity reached!", {
-                    description: "Team already has maximum number of members in it.",
-                });
-                return;
-            }
-
-            const { error } = await supabase
-                .from("users")
-                .update({ team_id: teamCode })
-                .eq("user_id", user?.id);
-            if (error) {
-                console.error("Error joining team", error);
-                toast("Whoops!", {
-                    description: "Error joining team. Please try again.",
-                });
-                return;
-            }
             toast("Success!", {
                 description: "You have successfully joined the team.",
             });
