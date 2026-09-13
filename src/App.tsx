@@ -7,6 +7,8 @@ import Dashboard from "./components/Dashboard";
 import JoinTeam from "./components/JoinTeam";
 import Payment from "./components/Payment";
 import Rulebook from "./components/Rulebook";
+import Privacy from "./components/Privacy";
+import Terms from "./components/Terms";
 
 export default function App() {
     return (
@@ -21,6 +23,8 @@ export default function App() {
                     <Route path="/team/:teamId" element={<Dashboard />}></Route>
                     <Route path="/:teamId/pay" element={<Payment />} />
                     <Route path="/rulebook" element={<Rulebook />} />
+                    <Route path="/privacy" element={<Privacy />} />
+                    <Route path="/terms" element={<Terms />} />
                 </Routes>
             </Router>
         </div>
