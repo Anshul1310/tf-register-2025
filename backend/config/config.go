@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -47,12 +48,14 @@ func LoadConfig() *Config {
 
 	allowedOriginsList := os.Getenv("ALLOWED_ORIGINS")
 	if allowedOriginsList == "" {
-		allowedOriginsList = "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173"
+		allowedOriginsList = "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,https://tf-register-frontend.netlify.app,https://tf-register-frontend.netlify.app/"
+	} else if !strings.Contains(allowedOriginsList, "tf-register-frontend.netlify.app") {
+		allowedOriginsList = allowedOriginsList + ",https://tf-register-frontend.netlify.app,https://tf-register-frontend.netlify.app/"
 	}
 
 	frontendApplicationURL := os.Getenv("VITE_PROD_URL_FRONTEND")
 	if frontendApplicationURL == "" {
-		frontendApplicationURL = "http://localhost:5173"
+		frontendApplicationURL = "https://tf-register-frontend.netlify.app"
 	}
 
 	teamCapacityLimit := 50
