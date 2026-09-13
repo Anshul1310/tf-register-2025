@@ -1,4 +1,4 @@
-import { supabase } from "@/utiils/supabase";
+import { auth } from "@/utiils/auth";
 
 const rawBackendUrl = import.meta.env.VITE_PROD_URL_BACKEND || "http://localhost:8000";
 export const BACKEND_URL = rawBackendUrl.startsWith("http")
@@ -11,7 +11,7 @@ async function getAuthHeaders(): Promise<HeadersInit> {
   };
 
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await auth.getSession();
     if (session?.access_token) {
       headers["Authorization"] = `Bearer ${session.access_token}`;
     }
@@ -49,7 +49,11 @@ export const apiClient = {
       headers,
       body: JSON.stringify(userData),
     });
-    return response.json();
+    const result = await response.json();
+    if (result.token) {
+      auth.setToken(result.token);
+    }
+    return result;
   },
 
   async getCurrentUser(): Promise<ApiResponse> {
@@ -246,7 +250,7 @@ export const apiClient = {
   async submitManualPayment(teamId: string, formData: FormData): Promise<ApiResponse> {
     let authHeader = "";
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await auth.getSession();
       if (session?.access_token) {
         authHeader = `Bearer ${session.access_token}`;
       }

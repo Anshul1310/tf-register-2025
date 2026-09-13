@@ -1,19 +1,24 @@
 package handlers
 
 import (
+	"time"
+
 	"github.com/Anshul1310/tf-register/internals/models"
 	"github.com/Anshul1310/tf-register/internals/service"
 	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
 type UserHandler struct {
 	userService *service.UserService
+	jwtSecret   string
 }
 
-func NewUserHandler(userService *service.UserService) *UserHandler {
+func NewUserHandler(userService *service.UserService, jwtSecret string) *UserHandler {
 	return &UserHandler{
 		userService: userService,
+		jwtSecret:   jwtSecret,
 	}
 }
 
@@ -98,10 +103,27 @@ func (userHandler *UserHandler) SyncUser(requestContext *fiber.Ctx) error {
 		})
 	}
 
+	// Generate a cryptographically signed JWT token
+	var tokenString string
+	if userHandler.jwtSecret != "" {
+		claims := jwt.MapClaims{
+			"sub":   syncedUserRecord.UserID.String(),
+			"email": syncedUserRecord.Email,
+			"exp":   time.Now().Add(30 * 24 * time.Hour).Unix(),
+			"iat":   time.Now().Unix(),
+		}
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+		signed, err := token.SignedString([]byte(userHandler.jwtSecret))
+		if err == nil {
+			tokenString = signed
+		}
+	}
+
 	return requestContext.Status(fiber.StatusOK).JSON(fiber.Map{
 		"success": true,
 		"message": "User synchronized successfully",
 		"data":    syncedUserRecord,
+		"token":   tokenString,
 	})
 }
 

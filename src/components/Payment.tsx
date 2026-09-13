@@ -106,6 +106,62 @@ const Payment = () => {
                   'Submit Payment'
                 )}
               </Button>
+              <div className="pt-4 border-t border-neutral-700">
+                <div className="text-xs text-neutral-400 font-semibold mb-2 flex items-center justify-between">
+                  <span>🧪 TEST / SIMULATION MODE</span>
+                  <span className="text-[10px] bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full">Dev Mode</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300 text-xs py-2 h-auto"
+                    disabled={isLoading}
+                    onClick={() => {
+                      toast.error('Simulated Payment Failed', {
+                        description: 'This is a simulated failure for testing purposes.',
+                      });
+                    }}
+                  >
+                    Simulate Failure
+                  </Button>
+                  <Button
+                    type="button"
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs py-2 h-auto"
+                    disabled={isLoading}
+                    onClick={async () => {
+                      if (!teamId) {
+                        toast.error('Team ID is missing.');
+                        return;
+                      }
+                      setIsLoading(true);
+                      try {
+                        const mockOrderId = `test_sim_${Date.now()}`;
+                        const verifyRes = await apiClient.verifyPayment(mockOrderId, teamId);
+                        if (verifyRes.success && verifyRes.paid) {
+                          toast.success('Simulated Payment Succeeded!', {
+                            description: 'Team payment status marked as PAID.',
+                          });
+                          setTimeout(() => {
+                            window.location.href = `/team/${teamId}`;
+                          }, 1000);
+                        } else {
+                          toast.error('Simulation Failed', {
+                            description: verifyRes.message || 'Could not update payment status.',
+                          });
+                        }
+                      } catch (err) {
+                        console.error('Sim error:', err);
+                        toast.error('Error simulating payment.');
+                      } finally {
+                        setIsLoading(false);
+                      }
+                    }}
+                  >
+                    Simulate Success
+                  </Button>
+                </div>
+              </div>
             </form>
           </div>
         </div>

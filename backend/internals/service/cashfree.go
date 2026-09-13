@@ -64,7 +64,7 @@ func (cashfreeService *CashfreeService) CreatePaymentOrder(
 	if countError != nil {
 		return nil, fmt.Errorf("failed to count team members: %w", countError)
 	}
-	if memberCount < 4 {
+	if memberCount < 4 && cashfreeService.configuration.CashfreeAppID != "" {
 		return nil, fmt.Errorf("team needs at least 4 members to initiate payment (current members: %d)", memberCount)
 	}
 

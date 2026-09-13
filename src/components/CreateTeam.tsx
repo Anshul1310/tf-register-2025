@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Loader2 } from "lucide-react";
 import { supabase } from "@/utiils/supabase";
 import { apiClient } from "@/utiils/api";
 import NavBar from "./Navbar";
@@ -10,6 +10,7 @@ import { toast } from "sonner";
 const CreateTeam = () => {
     const [userName, setUsername] = useState<string | undefined>(undefined);
     const [userInfo, setUserInfo] = useState<any | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
     useEffect(() => {
         const fetchUser = async () => {
@@ -36,9 +37,12 @@ const CreateTeam = () => {
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        if (isSubmitting) return;
+
         const formData = new FormData(e.target as HTMLFormElement);
         const data = Object.fromEntries(formData.entries());
 
+        setIsSubmitting(true);
         try {
             const response = await apiClient.createTeam({
                 name: data.name as string,
@@ -51,15 +55,20 @@ const CreateTeam = () => {
                 toast("Whoops!", {
                     description: response.message || "Error creating team. Please try again.",
                 });
+                setIsSubmitting(false);
                 return;
             }
 
-            window.location.href = "/";
+            toast.success("Team created successfully!");
+            setTimeout(() => {
+                window.location.href = "/";
+            }, 800);
         } catch (error: any) {
             console.error("Error creating team:", error);
             toast("Whoops!", {
                 description: "Error creating team. Please try again.",
             });
+            setIsSubmitting(false);
         }
     };
 
@@ -85,6 +94,7 @@ const CreateTeam = () => {
                                 id="name"
                                 name="name"
                                 required
+                                disabled={isSubmitting}
                                 placeholder="Enter team name"
                                 className="bg-[#2a2a2a] text-white border border-gray-600 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
@@ -104,6 +114,7 @@ const CreateTeam = () => {
                                 id="contactNumber"
                                 name="contactNumber"
                                 required
+                                disabled={isSubmitting}
                                 placeholder="Enter contact number"
                                 className="bg-[#2a2a2a] text-white border border-gray-600 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             />
@@ -111,10 +122,20 @@ const CreateTeam = () => {
 
                         <Button
                             type="submit"
-                            className="w-full bg-white hover:bg-gray-200 text-black font-bold py-3 rounded-lg flex items-center justify-center gap-2"
+                            disabled={isSubmitting}
+                            className="w-full bg-white hover:bg-gray-200 text-black font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition duration-200"
                         >
-                            <span>Create Team</span>
-                            <ArrowUpRight className="h-5 w-5" />
+                            {isSubmitting ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <span>Creating Team...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <span>Create Team</span>
+                                    <ArrowUpRight className="h-5 w-5" />
+                                </>
+                            )}
                         </Button>
                     </form>
                 </div>

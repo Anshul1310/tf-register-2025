@@ -99,6 +99,7 @@ const schema = z.object({
 const Profile = () => {
   const [_, setUserDetails] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const form = useForm({
     resolver: zodResolver(schema),
@@ -151,10 +152,13 @@ const Profile = () => {
   }, [form]);
 
   const onSubmit = async (data: any) => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
       const { data: { user }, error } = await supabase.auth.getUser();
       if(error || !user) {
         console.error("Error fetching user details:", error);
+        setIsSubmitting(false);
         return;
       }
 
@@ -169,12 +173,14 @@ const Profile = () => {
 
       if(!updateResponse.success) {
         console.error("Error updating user details:", updateResponse.message);
+        setIsSubmitting(false);
         return;
       }
 
       window.location.href = "/";
     } catch (error) {
       console.error("Error submitting the form:", error);
+      setIsSubmitting(false);
     }
   };
 
@@ -338,8 +344,19 @@ const Profile = () => {
                 )}
               />
               <div className="w-full flex md:flex-row-reverse">
-                <Button type="submit" className="md:px-16 md:w-auto mt-4 w-full py-4 px-4 bg-white text-black rounded-lg font-bold hover:bg-gray-300 transition duration-300">
-                  Proceed
+                <Button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="md:px-16 md:w-auto mt-4 w-full py-4 px-4 bg-white text-black rounded-lg font-bold hover:bg-gray-300 transition duration-300 flex items-center justify-center gap-2"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Saving Profile...</span>
+                    </>
+                  ) : (
+                    "Proceed"
+                  )}
                 </Button>
               </div>
             </form>

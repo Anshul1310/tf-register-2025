@@ -1,7 +1,6 @@
-import { createClient } from "@supabase/supabase-js";
+// Re-export standalone auth client (Supabase completely removed)
+import { auth, supabase as compatSupabase } from "./auth";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-
-export const supabase = createClient(supabaseUrl, supabaseKey);
-        
+export { auth };
+export const supabase = compatSupabase;
+export default compatSupabase;

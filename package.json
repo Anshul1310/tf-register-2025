@@ -28,7 +28,6 @@
     "@shadcn/ui": "^0.0.4",
     "@splinetool/react-spline": "^4.0.0",
     "@splinetool/runtime": "^1.9.28",
-    "@supabase/supabase-js": "^2.45.4",
     "animejs": "^3.2.2",
     "axios": "^1.7.7",
     "class-variance-authority": "^0.7.0",

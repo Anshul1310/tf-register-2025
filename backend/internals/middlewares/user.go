@@ -13,8 +13,6 @@ import (
 func AuthenticateUser(jwtSecretKey string) fiber.Handler {
 	return func(requestContext *fiber.Ctx) error {
 		authorizationHeader := requestContext.Get("Authorization")
-		fallbackUserIdentifier := requestContext.Get("X-User-ID")
-		fallbackUserEmail := requestContext.Get("X-User-Email")
 
 		if authorizationHeader != "" && strings.HasPrefix(authorizationHeader, "Bearer ") {
 			tokenString := strings.TrimPrefix(authorizationHeader, "Bearer ")
@@ -28,7 +26,7 @@ func AuthenticateUser(jwtSecretKey string) fiber.Handler {
 				return []byte(jwtSecretKey), nil
 			})
 
-			// If standard HMAC verification succeeded, or if checking Supabase payload without signature verification in dev
+			// Standard cryptographically verified HMAC signature
 			if tokenParseError == nil && parsedToken.Valid {
 				subjectClaim, hasSubject := tokenClaims["sub"].(string)
 				if hasSubject && subjectClaim != "" {
@@ -41,38 +39,11 @@ func AuthenticateUser(jwtSecretKey string) fiber.Handler {
 					}
 				}
 			}
-
-			// Supabase token extraction fallback: parse unverified claims if signature secret differs during development
-			unverifiedParser := jwt.NewParser()
-			unverifiedClaims := jwt.MapClaims{}
-			_, _, unverifiedParseError := unverifiedParser.ParseUnverified(tokenString, unverifiedClaims)
-			if unverifiedParseError == nil {
-				subjectClaim, hasSubject := unverifiedClaims["sub"].(string)
-				if hasSubject && subjectClaim != "" {
-					parsedUserUUID, uuidParseError := uuid.Parse(subjectClaim)
-					if uuidParseError == nil {
-						emailClaim, _ := unverifiedClaims["email"].(string)
-						requestContext.Locals("userID", parsedUserUUID)
-						requestContext.Locals("userEmail", emailClaim)
-						return requestContext.Next()
-					}
-				}
-			}
-		}
-
-		// Fallback header for testing or development
-		if fallbackUserIdentifier != "" {
-			parsedUserUUID, uuidParseError := uuid.Parse(fallbackUserIdentifier)
-			if uuidParseError == nil {
-				requestContext.Locals("userID", parsedUserUUID)
-				requestContext.Locals("userEmail", fallbackUserEmail)
-				return requestContext.Next()
-			}
 		}
 
 		return requestContext.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"success": false,
-			"message": "Unauthorized: valid Bearer token or X-User-ID header required",
+			"message": "Unauthorized: valid signed Bearer token required",
 		})
 	}
 }
