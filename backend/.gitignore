@@ -1,5 +1,5 @@
-main
-server
+/main
+/server
 *.exe
 *.exe~
 *.dll
@@ -7,3 +7,4 @@ server
 *.dylib
 *.test
 *.out
+.env
