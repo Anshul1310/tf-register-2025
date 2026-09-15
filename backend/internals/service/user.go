@@ -255,6 +255,13 @@ func (userService *UserService) LoginWithDAuth(requestContext context.Context, l
 	userUUID := uuid.NewSHA1(uuid.NameSpaceURL, []byte("dauth:"+cleanEmail))
 	pfpURL := fmt.Sprintf("https://api.dicebear.com/7.x/initials/svg?seed=%s", url.QueryEscape(userName))
 
+	// Extract roll number: from dauthUser.RollNo or from email prefix (e.g. 112125005@nitt.edu -> 112125005)
+	rollNumber := strings.TrimSpace(dauthUser.RollNo)
+	if rollNumber == "" && strings.Contains(cleanEmail, "@") {
+		emailPrefix := strings.Split(cleanEmail, "@")[0]
+		rollNumber = strings.TrimSpace(emailPrefix)
+	}
+
 	userModelToSave := &models.User{
 		UserID: userUUID,
 		Email:  cleanEmail,
@@ -262,11 +269,13 @@ func (userService *UserService) LoginWithDAuth(requestContext context.Context, l
 		Pfp:    &pfpURL,
 	}
 
-	if dauthUser.Gender != "" {
-		userModelToSave.Gender = &dauthUser.Gender
+	if rollNumber != "" {
+		userModelToSave.RollNumber = &rollNumber
 	}
-	if dauthUser.RollNo != "" {
-		userModelToSave.RollNumber = &dauthUser.RollNo
+
+	if dauthUser.Gender != "" {
+		genderLower := strings.ToLower(strings.TrimSpace(dauthUser.Gender))
+		userModelToSave.Gender = &genderLower
 	}
 
 	savedUserRecord, upsertError := userService.userRepository.UpsertUser(requestContext, userModelToSave)

@@ -23,6 +23,7 @@ import { Loader2 } from "lucide-react";
 import WaterDropGrid from "./WaterDropGrid";
 import { supabase } from "@/utiils/supabase";
 import { apiClient } from "@/utiils/api";
+import { getYearOfStudy } from "@/utiils/yearOfStudy";
 
 
 const genders = [
@@ -90,7 +91,7 @@ type User = {
 const schema = z.object({
   name: z.string().min(1, "Full Name is required"),
   rollNumber: z.string().length(9, "Roll Number must be exactly 9 digits").regex(/^\d+$/, "Roll Number must contain only digits"),
-  personalEmail: z.string().email("Invalid email address"),
+  personalEmail: z.string().email("Invalid personal email address"),
   hostel: z.string().nonempty("Hostel is required"),
   gender: z.string().nonempty("Gender is required"),
   mess: z.string().nonempty("Mess is required"),
@@ -132,12 +133,13 @@ const Profile = () => {
 
         if(userData) {
           setUserDetails(userData);
+          const rawGender = (userData?.gender || "").toLowerCase();
           form.reset({
             name: userData?.name || "",
             rollNumber: userData?.roll_number || "",
             personalEmail: userData?.email || "",
             hostel: userData?.hostel || "",
-            gender: userData?.gender || "",
+            gender: rawGender === "m" ? "male" : rawGender === "f" ? "female" : rawGender,
             mess: userData?.mess || "",
           });
         }
@@ -235,15 +237,30 @@ const Profile = () => {
               {/* Roll Number */}
               <FormField
                 name="rollNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Roll Number</FormLabel>
-                    <FormControl>
-                      <Input type="text" placeholder="Enter Roll Number" {...field} className="bg-[#1a1a1a] border mt-0 border-gray-600 rounded-md p-2" />
-                    </FormControl>
-                    <FormMessage className="text-red-500" />
-                  </FormItem>
-                )}
+                render={({ field }) => {
+                  const yearInfo = getYearOfStudy(field.value);
+                  return (
+                    <FormItem>
+                      <div className="flex items-center justify-between">
+                        <FormLabel>Roll Number</FormLabel>
+                        {yearInfo.yearName && (
+                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                            🎓 {yearInfo.yearName} (Batch &apos;{yearInfo.batchYear})
+                          </span>
+                        )}
+                      </div>
+                      <FormControl>
+                        <Input
+                          type="text"
+                          placeholder="Enter Roll Number (e.g. 112125005)"
+                          {...field}
+                          className="bg-[#1a1a1a] border mt-0 border-gray-600 rounded-md p-2"
+                        />
+                      </FormControl>
+                      <FormMessage className="text-red-500" />
+                    </FormItem>
+                  );
+                }}
               />
 
               {/* Personal Email */}
@@ -253,8 +270,16 @@ const Profile = () => {
                   <FormItem>
                     <FormLabel>Personal Email</FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="Enter your personal email" {...field} className="bg-[#1a1a1a] mt-0 border border-gray-600 rounded-md p-2" disabled />
+                      <Input
+                        type="email"
+                        placeholder="Enter your personal email (e.g. Gmail)"
+                        {...field}
+                        className="bg-[#1a1a1a] mt-0 border border-gray-600 rounded-md p-2"
+                      />
                     </FormControl>
+                    <p className="text-[11px] text-neutral-400">
+                      Official hackathon notifications and event passes will be sent here.
+                    </p>
                     <FormMessage className="text-red-500" />
                   </FormItem>
                 )}
