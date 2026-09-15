@@ -32,7 +32,7 @@ func main() {
 	teamRepository := repository.NewTeamRepository(databaseConnectionPool)
 
 	// 4. Initialize Services
-	userService := service.NewUserService(userRepository, teamRepository)
+	userService := service.NewUserService(userRepository, teamRepository, applicationConfig)
 	teamService := service.NewTeamService(teamRepository, userRepository, 5)
 	cashfreeService := service.NewCashfreeService(applicationConfig, teamRepository, userRepository)
 

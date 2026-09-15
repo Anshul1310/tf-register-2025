@@ -41,3 +41,30 @@ type APIResponse struct {
 	Data    interface{} `json:"data,omitempty"`
 	Error   string      `json:"error,omitempty"`
 }
+
+type DAuthLoginRequest struct {
+	Code        string `json:"code"`
+	RedirectURI string `json:"redirect_uri,omitempty"`
+}
+
+type DAuthTokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	TokenType    string `json:"token_type"`
+	ExpiresIn    int    `json:"expires_in"`
+	RefreshToken string `json:"refresh_token,omitempty"`
+	IDToken      string `json:"id_token,omitempty"`
+	Error        string `json:"error,omitempty"`
+	ErrorDesc    string `json:"error_description,omitempty"`
+}
+
+type DAuthUserResponse struct {
+	ID          interface{} `json:"id"`
+	Name        string      `json:"name"`
+	Email       string      `json:"email"`
+	Gender      string      `json:"gender,omitempty"`
+	PhoneNumber string      `json:"phoneNumber,omitempty"`
+	Batch       interface{} `json:"batch,omitempty"`
+	Dept        string      `json:"dept,omitempty"`
+	RollNo      string      `json:"rollNo,omitempty"`
+}
+

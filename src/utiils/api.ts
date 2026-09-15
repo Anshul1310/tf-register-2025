@@ -37,6 +37,23 @@ export interface ApiResponse<T = any> {
 }
 
 export const apiClient = {
+  async loginWithDAuth(payload: {
+    code: string;
+    redirect_uri?: string;
+  }): Promise<ApiResponse> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BACKEND_URL}/user/dauth`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (result.token) {
+      auth.setToken(result.token);
+    }
+    return result;
+  },
+
   async syncUser(userData: {
     user_id?: string;
     email?: string;

@@ -39,6 +39,7 @@ func SetupRoutes(
 		userGroup := rootGroup.Group("/user")
 
 		// Public/Semi-public user endpoints
+		userGroup.Post("/dauth", userHandler.HandleDAuthLogin)
 		userGroup.Post("/sync", middlewares.OptionalAuthenticateUser(jwtSecretKey), userHandler.SyncUser)
 		userGroup.Get("/:id", userHandler.GetUserByID)
 

@@ -189,3 +189,53 @@ func (userHandler *UserHandler) LeaveTeam(requestContext *fiber.Ctx) error {
 		"message": "Successfully left the team",
 	})
 }
+
+func (userHandler *UserHandler) HandleDAuthLogin(requestContext *fiber.Ctx) error {
+	var dauthReq models.DAuthLoginRequest
+	bodyParseError := requestContext.BodyParser(&dauthReq)
+	if bodyParseError != nil {
+		return requestContext.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Failed to parse DAuth request payload: " + bodyParseError.Error(),
+		})
+	}
+
+	if dauthReq.Code == "" {
+		return requestContext.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Authorization code is required",
+		})
+	}
+
+	syncedUserRecord, dauthError := userHandler.userService.LoginWithDAuth(requestContext.Context(), dauthReq)
+	if dauthError != nil {
+		return requestContext.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": dauthError.Error(),
+		})
+	}
+
+	// Generate a cryptographically signed JWT token
+	var tokenString string
+	if userHandler.jwtSecret != "" {
+		claims := jwt.MapClaims{
+			"sub":   syncedUserRecord.UserID.String(),
+			"email": syncedUserRecord.Email,
+			"exp":   time.Now().Add(30 * 24 * time.Hour).Unix(),
+			"iat":   time.Now().Unix(),
+		}
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+		signed, err := token.SignedString([]byte(userHandler.jwtSecret))
+		if err == nil {
+			tokenString = signed
+		}
+	}
+
+	return requestContext.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success": true,
+		"message": "DAuth login successful",
+		"data":    syncedUserRecord,
+		"token":   tokenString,
+	})
+}
+

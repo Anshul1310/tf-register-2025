@@ -21,14 +21,26 @@ type Config struct {
 	CashfreeSecretKey   string
 	CashfreeEnvironment string
 	CashfreeApiVersion  string
+	DAuthClientID       string
+	DAuthClientSecret   string
+	DAuthRedirectURI    string
 }
 
 func LoadConfig() *Config {
-	// Attempt to load .env file from current directory or parent directory
-	environmentLoadError := godotenv.Load()
-	if environmentLoadError != nil {
-		// Attempt loading from backend directory if run from root
-		_ = godotenv.Load("backend/.env")
+	// Attempt to load .env file from common execution directories
+	possibleEnvPaths := []string{
+		".env",
+		"backend/.env",
+		"../.env",
+		"../../.env",
+		"../../backend/.env",
+	}
+
+	for _, envPath := range possibleEnvPaths {
+		if err := godotenv.Load(envPath); err == nil {
+			log.Printf("Loaded environment variables from: %s", envPath)
+			break
+		}
 	}
 
 	serverPort := os.Getenv("PORT")
@@ -89,6 +101,18 @@ func LoadConfig() *Config {
 		cashfreeAPIVersionHeader = "2023-08-01"
 	}
 
+	dauthClientID := os.Getenv("DAUTH_CLIENT_ID")
+	if dauthClientID == "" {
+		dauthClientID = os.Getenv("VITE_DAUTH_CLIENT_ID")
+	}
+
+	dauthClientSecret := os.Getenv("DAUTH_CLIENT_SECRET")
+
+	dauthRedirectURI := os.Getenv("DAUTH_REDIRECT_URI")
+	if dauthRedirectURI == "" {
+		dauthRedirectURI = os.Getenv("VITE_DAUTH_REDIRECT_URI")
+	}
+
 	log.Printf("Loaded configuration with port: %s, cashfree mode: %s", serverPort, cashfreeEnvironmentMode)
 
 	return &Config{
@@ -103,5 +127,8 @@ func LoadConfig() *Config {
 		CashfreeSecretKey:   cashfreeSecretAPIKey,
 		CashfreeEnvironment: cashfreeEnvironmentMode,
 		CashfreeApiVersion:  cashfreeAPIVersionHeader,
+		DAuthClientID:       dauthClientID,
+		DAuthClientSecret:   dauthClientSecret,
+		DAuthRedirectURI:    dauthRedirectURI,
 	}
 }

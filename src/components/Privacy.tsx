@@ -26,12 +26,12 @@ const Privacy = () => {
                     <section className="space-y-2">
                         <h2 className="text-xl font-bold text-white">1. Information We Collect</h2>
                         <p>
-                            When you sign in to TransfiNITTe 2025 using your Google account or email, we collect basic profile details:
+                            When you sign in to TransfiNITTe 2025 using DAuth (Delta SSO) or email, we collect basic profile details:
                         </p>
                         <ul className="list-disc pl-6 space-y-1 text-neutral-400">
-                            <li>Your Name and Email Address (from your Google account)</li>
-                            <li>Your Profile Avatar URL</li>
-                            <li>Hackathon registration details (e.g., college, department, roll number, hostel, team associations)</li>
+                            <li>Your Name, Email Address, and Roll Number (from your DAuth account)</li>
+                            <li>Your Profile Avatar</li>
+                            <li>Hackathon registration details (e.g., college, department, roll number, hostel, mess, team associations)</li>
                         </ul>
                     </section>
 
@@ -53,9 +53,9 @@ const Privacy = () => {
                     </section>
 
                     <section className="space-y-2">
-                        <h2 className="text-xl font-bold text-white">4. Google User Data Policy</h2>
+                        <h2 className="text-xl font-bold text-white">4. DAuth / SSO Data Usage</h2>
                         <p>
-                            TransfiNITTe 2025 accesses only the basic Google user profile scopes (`profile` and `email`). We do not request or store any other private data from your Google account.
+                            TransfiNITTe 2025 accesses only the necessary DAuth user profile scopes (`email`, `openid`, `profile`, `user`). We do not request or store any other private data.
                         </p>
                     </section>
 

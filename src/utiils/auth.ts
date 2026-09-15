@@ -125,25 +125,28 @@ class StandaloneAuth {
     localStorage.removeItem(STORAGE_TOKEN_KEY);
   }
 
-  public signInWithGoogleCredential(credential: string): AuthUser {
-    const payload = parseJwtPayload(credential);
-    const email = payload?.email || "user@transfinitte.com";
-    const name = payload?.name || email.split("@")[0];
-    const picture = payload?.picture || "";
-    const userId = generateDeterministicUUID(payload?.sub || email);
-
+  public signInWithDAuth(userData: {
+    id: string;
+    email: string;
+    name?: string;
+    pfp?: string;
+    gender?: string;
+    roll_number?: string;
+  }, token?: string): AuthUser {
     const user: AuthUser = {
-      id: userId,
-      email: email,
+      id: userData.id,
+      email: userData.email,
       user_metadata: {
-        full_name: name,
-        name: name,
-        avatar_url: picture,
-        picture: picture,
+        full_name: userData.name || userData.email.split("@")[0],
+        name: userData.name || userData.email.split("@")[0],
+        avatar_url: userData.pfp || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(userData.name || userData.email)}`,
+        picture: userData.pfp || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(userData.name || userData.email)}`,
+        gender: userData.gender,
+        roll_number: userData.roll_number,
       },
     };
 
-    this.signIn(user, credential);
+    this.signIn(user, token);
     return user;
   }
 }
