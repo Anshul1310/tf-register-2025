@@ -23,7 +23,7 @@ func NewUserRepository(databasePool *pgxpool.Pool) *UserRepository {
 
 func (userRepository *UserRepository) FindUserByID(requestContext context.Context, userID uuid.UUID) (*models.User, error) {
 	selectQuery := `
-		SELECT user_id, name, email, roll_number, hostel, mess, gender, pfp, team_id, created_at
+		SELECT user_id, COALESCE(name, ''), COALESCE(email, ''), roll_number, hostel, mess, gender, pfp, team_id, created_at
 		FROM users
 		WHERE user_id = $1;
 	`
@@ -54,7 +54,7 @@ func (userRepository *UserRepository) FindUserByID(requestContext context.Contex
 
 func (userRepository *UserRepository) FindUserByEmail(requestContext context.Context, emailAddress string) (*models.User, error) {
 	selectQuery := `
-		SELECT user_id, name, email, roll_number, hostel, mess, gender, pfp, team_id, created_at
+		SELECT user_id, COALESCE(name, ''), COALESCE(email, ''), roll_number, hostel, mess, gender, pfp, team_id, created_at
 		FROM users
 		WHERE email = $1;
 	`
@@ -93,7 +93,7 @@ func (userRepository *UserRepository) UpsertUser(requestContext context.Context,
 			roll_number = CASE WHEN users.roll_number IS NULL OR users.roll_number = '' THEN EXCLUDED.roll_number ELSE users.roll_number END,
 			gender = CASE WHEN users.gender IS NULL OR users.gender = '' THEN EXCLUDED.gender ELSE users.gender END,
 			pfp = CASE WHEN users.pfp IS NULL OR users.pfp = '' THEN EXCLUDED.pfp ELSE users.pfp END
-		RETURNING user_id, name, email, roll_number, hostel, mess, gender, pfp, team_id, created_at;
+		RETURNING user_id, COALESCE(name, ''), COALESCE(email, ''), roll_number, hostel, mess, gender, pfp, team_id, created_at;
 	`
 
 	savedUser := &models.User{}
@@ -137,7 +137,7 @@ func (userRepository *UserRepository) UpdateUserProfile(requestContext context.C
 			gender = $6,
 			email = COALESCE(NULLIF($7, ''), email)
 		WHERE user_id = $1
-		RETURNING user_id, name, email, roll_number, hostel, mess, gender, pfp, team_id, created_at;
+		RETURNING user_id, COALESCE(name, ''), COALESCE(email, ''), roll_number, hostel, mess, gender, pfp, team_id, created_at;
 	`
 
 	updatedUser := &models.User{}
@@ -188,7 +188,7 @@ func (userRepository *UserRepository) UpdateUserTeam(requestContext context.Cont
 
 func (userRepository *UserRepository) FindUsersByTeamID(requestContext context.Context, teamIdentifier string) ([]models.User, error) {
 	selectQuery := `
-		SELECT user_id, name, email, roll_number, hostel, mess, gender, pfp, team_id, created_at
+		SELECT user_id, COALESCE(name, ''), COALESCE(email, ''), roll_number, hostel, mess, gender, pfp, team_id, created_at
 		FROM users
 		WHERE team_id = $1;
 	`
