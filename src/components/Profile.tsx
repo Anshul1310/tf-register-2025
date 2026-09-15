@@ -98,7 +98,7 @@ const schema = z.object({
 });
 
 const Profile = () => {
-  const [_, setUserDetails] = useState<User | null>(null);
+  const [userDetails, setUserDetails] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
@@ -223,9 +223,16 @@ const Profile = () => {
             <img src="/left-arrow.svg" alt="Logo" style={{ width: '15px', aspectRatio: '13 / 10' }} />
             <a href="/" className="text-neutral-500 text-sm self-center pl-2 hover:text-white transition-[1s]">GO BACK</a>
           </div>
-          <h1 className="md:text-2xl text-3xl ml-8 mb-4 text-white md:text-left w-full text-left">Complete your Application</h1>
+          <h1 className="md:text-2xl text-3xl ml-8 mb-4 text-white md:text-left w-full text-left">
+            {userDetails?.hostel ? "Edit Profile" : "Complete your Application"}
+          </h1>
           <p className="md:text-xs mb-4 ml-4 text-left md:text-sm text-white">
-            Please enter your details to attend TransfiNITTe 2025 Hackathon. By entering your information, you acknowledge you have read our <a href="/rulebook" className="underline underline-offset-4"> Privacy Policy</a>
+            {userDetails?.hostel
+              ? "Update your personal details and preferences for TransfiNITTe 2025."
+              : "Please enter your details to attend TransfiNITTe 2025 Hackathon. By entering your information, you acknowledge you have read our "}
+            {!userDetails?.hostel && (
+              <a href="/rulebook" className="underline underline-offset-4"> Privacy Policy</a>
+            )}
           </p>
           <Form {...form}>
             <form
@@ -306,7 +313,7 @@ const Profile = () => {
                     <FormControl>
                       <Select
                         onValueChange={field.onChange}
-                        defaultValue={field.value}
+                        value={field.value}
                       >
                         <SelectTrigger className="bg-[#1a1a1a] border border-gray-600 rounded-md">
                           <SelectValue placeholder="Select Hostel" />
@@ -334,7 +341,7 @@ const Profile = () => {
                     <FormControl>
                       <Select
                         onValueChange={field.onChange}
-                        defaultValue={field.value}
+                        value={field.value}
                       >
                         <SelectTrigger className="bg-[#1a1a1a] border border-gray-600 rounded-md">
                           <SelectValue placeholder="Select Mess" />
@@ -362,7 +369,7 @@ const Profile = () => {
                     <FormControl>
                       <Select
                         onValueChange={field.onChange}
-                        defaultValue={field.value}
+                        value={field.value}
                       >
                         <SelectTrigger className="bg-[#1a1a1a] border border-gray-600 rounded-md">
                           <SelectValue placeholder="Select Gender" />
