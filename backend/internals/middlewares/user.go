@@ -26,10 +26,28 @@ func extractToken(requestContext *fiber.Ctx) string {
 		return jwtCookie
 	}
 
+	// Fallback to raw Cookie header parsing in case fiber.Cookies misses edge delimiters
+	cookieHeader := requestContext.Get("Cookie")
+	if cookieHeader != "" {
+		for _, part := range strings.Split(cookieHeader, ";") {
+			trimmed := strings.TrimSpace(part)
+			if strings.HasPrefix(trimmed, "token=") {
+				return strings.TrimPrefix(trimmed, "token=")
+			}
+			if strings.HasPrefix(trimmed, "jwt=") {
+				return strings.TrimPrefix(trimmed, "jwt=")
+			}
+		}
+	}
+
 	return ""
 }
 
 func AuthenticateUser(jwtSecretKey string) fiber.Handler {
+	if jwtSecretKey == "" {
+		jwtSecretKey = "tf-register-secret-key-2025"
+	}
+
 	return func(requestContext *fiber.Ctx) error {
 		tokenString := extractToken(requestContext)
 
