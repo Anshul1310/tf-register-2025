@@ -286,3 +286,85 @@ func (userService *UserService) LoginWithDAuth(requestContext context.Context, l
 	return savedUserRecord, nil
 }
 
+func (userService *UserService) EnsureMasterUser(requestContext context.Context) error {
+	masterEmail := "anshul@gmail.com"
+	existingUser, err := userService.userRepository.FindUserByEmail(requestContext, masterEmail)
+	if err != nil {
+		return fmt.Errorf("failed to check master user: %w", err)
+	}
+
+	rollNo := "112125003"
+	gender := "male"
+	pfp := "https://api.dicebear.com/7.x/initials/svg?seed=Anshul"
+	name := "Anshul"
+
+	if existingUser == nil {
+		userUUID := uuid.NewSHA1(uuid.NameSpaceURL, []byte("master:"+masterEmail))
+		masterUser := &models.User{
+			UserID:     userUUID,
+			Name:       name,
+			Email:      masterEmail,
+			RollNumber: &rollNo,
+			Gender:     &gender,
+			Pfp:        &pfp,
+		}
+		_, createErr := userService.userRepository.UpsertUser(requestContext, masterUser)
+		if createErr != nil {
+			return fmt.Errorf("failed to create master user: %w", createErr)
+		}
+		fmt.Printf("Master user (%s) verified/created with roll number %s\n", masterEmail, rollNo)
+	} else if existingUser.RollNumber == nil || *existingUser.RollNumber == "" {
+		existingUser.RollNumber = &rollNo
+		existingUser.Gender = &gender
+		_, _ = userService.userRepository.UpsertUser(requestContext, existingUser)
+	}
+
+	return nil
+}
+
+func (userService *UserService) LoginWithEmail(requestContext context.Context, loginReq models.EmailLoginRequest) (*models.User, error) {
+	cleanEmail := strings.ToLower(strings.TrimSpace(loginReq.Email))
+	if cleanEmail == "" {
+		return nil, errors.New("email is required")
+	}
+
+	// If master user credentials
+	if cleanEmail == "anshul@gmail.com" {
+		if strings.TrimSpace(loginReq.Password) != "anshul" {
+			return nil, errors.New("invalid password for master user")
+		}
+		_ = userService.EnsureMasterUser(requestContext)
+		userRecord, err := userService.userRepository.FindUserByEmail(requestContext, cleanEmail)
+		if err == nil && userRecord != nil {
+			return userRecord, nil
+		}
+	}
+
+	// For general email login
+	existingUser, err := userService.userRepository.FindUserByEmail(requestContext, cleanEmail)
+	if err == nil && existingUser != nil {
+		return existingUser, nil
+	}
+
+	userName := strings.TrimSpace(loginReq.Name)
+	if userName == "" {
+		userName = strings.Split(cleanEmail, "@")[0]
+	}
+	userUUID := uuid.NewSHA1(uuid.NameSpaceURL, []byte("email:"+cleanEmail))
+	pfpURL := fmt.Sprintf("https://api.dicebear.com/7.x/initials/svg?seed=%s", url.QueryEscape(userName))
+
+	newUser := &models.User{
+		UserID: userUUID,
+		Email:  cleanEmail,
+		Name:   userName,
+		Pfp:    &pfpURL,
+	}
+
+	saved, upsertErr := userService.userRepository.UpsertUser(requestContext, newUser)
+	if upsertErr != nil {
+		return nil, fmt.Errorf("failed to create user: %w", upsertErr)
+	}
+	return saved, nil
+}
+
+

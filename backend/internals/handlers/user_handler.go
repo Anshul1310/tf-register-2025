@@ -136,6 +136,56 @@ func (userHandler *UserHandler) SyncUser(requestContext *fiber.Ctx) error {
 	})
 }
 
+func (userHandler *UserHandler) HandleEmailLogin(requestContext *fiber.Ctx) error {
+	var loginReq models.EmailLoginRequest
+	if err := requestContext.BodyParser(&loginReq); err != nil {
+		return requestContext.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": "Invalid request payload: " + err.Error(),
+		})
+	}
+
+	userRecord, err := userHandler.userService.LoginWithEmail(requestContext.Context(), loginReq)
+	if err != nil {
+		return requestContext.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"success": false,
+			"message": err.Error(),
+		})
+	}
+
+	// Generate a cryptographically signed JWT token
+	var tokenString string
+	if userHandler.jwtSecret != "" {
+		claims := jwt.MapClaims{
+			"sub":   userRecord.UserID.String(),
+			"email": userRecord.Email,
+			"exp":   time.Now().Add(30 * 24 * time.Hour).Unix(),
+			"iat":   time.Now().Unix(),
+		}
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+		signed, signErr := token.SignedString([]byte(userHandler.jwtSecret))
+		if signErr == nil {
+			tokenString = signed
+			requestContext.Cookie(&fiber.Cookie{
+				Name:     "token",
+				Value:    tokenString,
+				Expires:  time.Now().Add(30 * 24 * time.Hour),
+				HTTPOnly: true,
+				Secure:   true,
+				SameSite: "None",
+				Path:     "/",
+			})
+		}
+	}
+
+	return requestContext.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success": true,
+		"message": "Login successful",
+		"data":    userRecord,
+		"token":   tokenString,
+	})
+}
+
 func (userHandler *UserHandler) UpdateProfile(requestContext *fiber.Ctx) error {
 	authenticatedUserValue := requestContext.Locals("userID")
 	if authenticatedUserValue == nil {

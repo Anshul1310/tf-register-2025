@@ -55,6 +55,25 @@ export const apiClient = {
     return result;
   },
 
+  async loginWithEmail(payload: {
+    email: string;
+    password?: string;
+    name?: string;
+  }): Promise<ApiResponse> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BACKEND_URL}/user/login`, {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (result.token) {
+      auth.setToken(result.token);
+    }
+    return result;
+  },
+
   async syncUser(userData: {
     user_id?: string;
     email?: string;

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 
@@ -33,6 +34,10 @@ func main() {
 
 	// 4. Initialize Services
 	userService := service.NewUserService(userRepository, teamRepository, applicationConfig)
+	if err := userService.EnsureMasterUser(context.Background()); err != nil {
+		log.Printf("Notice: Master user check error: %v", err)
+	}
+
 	teamService := service.NewTeamService(teamRepository, userRepository, 5)
 	cashfreeService := service.NewCashfreeService(applicationConfig, teamRepository, userRepository)
 
