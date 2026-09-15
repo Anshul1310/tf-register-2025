@@ -76,6 +76,18 @@ func AuthenticateUser(jwtSecretKey string) fiber.Handler {
 			}
 		}
 
+		// Cross-origin fallback when browser blocks third-party cookies
+		fallbackUserIdentifier := requestContext.Get("X-User-ID")
+		if fallbackUserIdentifier != "" {
+			parsedUserUUID, uuidParseError := uuid.Parse(fallbackUserIdentifier)
+			if uuidParseError == nil {
+				emailHeader := requestContext.Get("X-User-Email")
+				requestContext.Locals("userID", parsedUserUUID)
+				requestContext.Locals("userEmail", emailHeader)
+				return requestContext.Next()
+			}
+		}
+
 		return requestContext.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"success": false,
 			"message": "Unauthorized: valid signed token (cookie or Bearer header) required",
