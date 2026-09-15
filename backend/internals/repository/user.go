@@ -85,11 +85,13 @@ func (userRepository *UserRepository) FindUserByEmail(requestContext context.Con
 
 func (userRepository *UserRepository) UpsertUser(requestContext context.Context, userToSave *models.User) (*models.User, error) {
 	upsertQuery := `
-		INSERT INTO users (user_id, name, email, pfp)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO users (user_id, name, email, roll_number, gender, pfp)
+		VALUES ($1, $2, NULLIF($3, ''), $4, $5, $6)
 		ON CONFLICT (user_id) DO UPDATE SET
-			email = EXCLUDED.email,
 			name = CASE WHEN users.name IS NULL OR users.name = '' THEN EXCLUDED.name ELSE users.name END,
+			email = CASE WHEN EXCLUDED.email IS NOT NULL AND EXCLUDED.email != '' THEN EXCLUDED.email ELSE users.email END,
+			roll_number = CASE WHEN users.roll_number IS NULL OR users.roll_number = '' THEN EXCLUDED.roll_number ELSE users.roll_number END,
+			gender = CASE WHEN users.gender IS NULL OR users.gender = '' THEN EXCLUDED.gender ELSE users.gender END,
 			pfp = CASE WHEN users.pfp IS NULL OR users.pfp = '' THEN EXCLUDED.pfp ELSE users.pfp END
 		RETURNING user_id, name, email, roll_number, hostel, mess, gender, pfp, team_id, created_at;
 	`
@@ -101,6 +103,8 @@ func (userRepository *UserRepository) UpsertUser(requestContext context.Context,
 		userToSave.UserID,
 		userToSave.Name,
 		userToSave.Email,
+		userToSave.RollNumber,
+		userToSave.Gender,
 		userToSave.Pfp,
 	).Scan(
 		&savedUser.UserID,

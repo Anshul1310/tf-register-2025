@@ -255,16 +255,39 @@ func (userService *UserService) LoginWithDAuth(requestContext context.Context, l
 	userUUID := uuid.NewSHA1(uuid.NameSpaceURL, []byte("dauth:"+cleanEmail))
 	pfpURL := fmt.Sprintf("https://api.dicebear.com/7.x/initials/svg?seed=%s", url.QueryEscape(userName))
 
-	// Extract roll number: from dauthUser.RollNo or from email prefix (e.g. 112125005@nitt.edu -> 112125005)
+	// Extract roll number: from dauthUser.RollNo or by stripping @nitt.edu / @... from cleanEmail
 	rollNumber := strings.TrimSpace(dauthUser.RollNo)
 	if rollNumber == "" && strings.Contains(cleanEmail, "@") {
-		emailPrefix := strings.Split(cleanEmail, "@")[0]
-		rollNumber = strings.TrimSpace(emailPrefix)
+		rollNumber = strings.TrimSuffix(cleanEmail, "@nitt.edu")
+		if strings.Contains(rollNumber, "@") {
+			rollNumber = strings.Split(rollNumber, "@")[0]
+		}
+		rollNumber = strings.TrimSpace(rollNumber)
+	}
+
+	// Extract & normalize gender from DAuth response
+	var userGender *string
+	if dauthUser.Gender != "" {
+		g := strings.ToLower(strings.TrimSpace(dauthUser.Gender))
+		if g == "m" || g == "male" {
+			g = "male"
+		} else if g == "f" || g == "female" {
+			g = "female"
+		} else {
+			g = "other"
+		}
+		userGender = &g
+	}
+
+	// Personal email: Keep empty if it is a @nitt.edu email so user can enter personal email in the form
+	var personalEmail string
+	if !strings.HasSuffix(cleanEmail, "@nitt.edu") {
+		personalEmail = cleanEmail
 	}
 
 	userModelToSave := &models.User{
 		UserID: userUUID,
-		Email:  cleanEmail,
+		Email:  personalEmail,
 		Name:   userName,
 		Pfp:    &pfpURL,
 	}
@@ -273,9 +296,8 @@ func (userService *UserService) LoginWithDAuth(requestContext context.Context, l
 		userModelToSave.RollNumber = &rollNumber
 	}
 
-	if dauthUser.Gender != "" {
-		genderLower := strings.ToLower(strings.TrimSpace(dauthUser.Gender))
-		userModelToSave.Gender = &genderLower
+	if userGender != nil {
+		userModelToSave.Gender = userGender
 	}
 
 	savedUserRecord, upsertError := userService.userRepository.UpsertUser(requestContext, userModelToSave)

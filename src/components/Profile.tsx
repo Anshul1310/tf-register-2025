@@ -134,12 +134,24 @@ const Profile = () => {
         if(userData) {
           setUserDetails(userData);
           const rawGender = (userData?.gender || "").toLowerCase();
+          const mappedGender = rawGender === "m" || rawGender === "male"
+            ? "male"
+            : rawGender === "f" || rawGender === "female"
+            ? "female"
+            : rawGender === "other" || rawGender === "others"
+            ? "other"
+            : "";
+
+          // Keep email field empty if it was the college SSO @nitt.edu email, so user enters their personal email
+          const currentEmail = userData?.email || "";
+          const initialPersonalEmail = currentEmail.endsWith("@nitt.edu") ? "" : currentEmail;
+
           form.reset({
             name: userData?.name || "",
             rollNumber: userData?.roll_number || "",
-            personalEmail: userData?.email || "",
+            personalEmail: initialPersonalEmail,
             hostel: userData?.hostel || "",
-            gender: rawGender === "m" ? "male" : rawGender === "f" ? "female" : rawGender,
+            gender: mappedGender,
             mess: userData?.mess || "",
           });
         }

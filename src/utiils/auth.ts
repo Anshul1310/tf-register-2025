@@ -17,7 +17,6 @@ export interface AuthSession {
 }
 
 const STORAGE_USER_KEY = "tf_auth_user";
-const STORAGE_TOKEN_KEY = "tf_auth_token";
 
 // Deterministically generate a valid UUID from string (e.g. email or Google sub)
 export function generateDeterministicUUID(input: string): string {
@@ -57,7 +56,6 @@ export function parseJwtPayload(token: string): any {
 
 class StandaloneAuth {
   private currentUser: AuthUser | null = null;
-  private token: string | null = null;
 
   constructor() {
     this.loadFromStorage();
@@ -65,13 +63,14 @@ class StandaloneAuth {
 
   private loadFromStorage() {
     try {
+      // Clear any legacy JWT from localStorage
+      localStorage.removeItem("tf_auth_token");
+      localStorage.removeItem("jwt");
+      localStorage.removeItem("token");
+
       const storedUser = localStorage.getItem(STORAGE_USER_KEY);
-      const storedToken = localStorage.getItem(STORAGE_TOKEN_KEY);
       if (storedUser) {
         this.currentUser = JSON.parse(storedUser);
-      }
-      if (storedToken) {
-        this.token = storedToken;
       }
     } catch (e) {
       console.error("Failed to load auth from storage", e);
@@ -98,7 +97,7 @@ class StandaloneAuth {
     return {
       data: {
         session: {
-          access_token: this.token || "mock_token_" + this.currentUser.id,
+          access_token: "", // Handled securely via HTTP-only cookies
           user: this.currentUser,
         },
       },
@@ -106,23 +105,28 @@ class StandaloneAuth {
     };
   }
 
-  public signIn(user: AuthUser, token?: string) {
+  public signIn(user: AuthUser, _token?: string) {
     this.currentUser = user;
-    this.token = token || "token_" + user.id;
     localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(user));
-    localStorage.setItem(STORAGE_TOKEN_KEY, this.token);
+    // Never store JWT token in localStorage
+    localStorage.removeItem("tf_auth_token");
+    localStorage.removeItem("jwt");
+    localStorage.removeItem("token");
   }
 
-  public setToken(token: string) {
-    this.token = token;
-    localStorage.setItem(STORAGE_TOKEN_KEY, token);
+  public setToken(_token: string) {
+    // No-op: tokens are exclusively maintained in HTTP-only cookies
+    localStorage.removeItem("tf_auth_token");
+    localStorage.removeItem("jwt");
+    localStorage.removeItem("token");
   }
 
   public async signOut(): Promise<void> {
     this.currentUser = null;
-    this.token = null;
     localStorage.removeItem(STORAGE_USER_KEY);
-    localStorage.removeItem(STORAGE_TOKEN_KEY);
+    localStorage.removeItem("tf_auth_token");
+    localStorage.removeItem("jwt");
+    localStorage.removeItem("token");
     try {
       const rawBackendUrl = import.meta.env.VITE_PROD_URL_BACKEND || "http://localhost:8000";
       const backendUrl = rawBackendUrl.startsWith("http") ? rawBackendUrl : `http://${rawBackendUrl}`;
@@ -163,3 +167,4 @@ class StandaloneAuth {
 
 export const auth = new StandaloneAuth();
 export const supabase = { auth }; // Backward compatibility alias
+
