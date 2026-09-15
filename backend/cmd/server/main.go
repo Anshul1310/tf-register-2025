@@ -55,7 +55,8 @@ func main() {
 	fiberApplication.Use(cors.New(cors.Config{
 		AllowOrigins:     applicationConfig.AllowedOrigins,
 		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-User-ID, X-User-Email",
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization, X-User-ID, X-User-Email, Cookie",
+		ExposeHeaders:    "Set-Cookie",
 		AllowCredentials: true,
 	}))
 

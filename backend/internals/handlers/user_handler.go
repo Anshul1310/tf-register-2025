@@ -116,6 +116,15 @@ func (userHandler *UserHandler) SyncUser(requestContext *fiber.Ctx) error {
 		signed, err := token.SignedString([]byte(userHandler.jwtSecret))
 		if err == nil {
 			tokenString = signed
+			requestContext.Cookie(&fiber.Cookie{
+				Name:     "token",
+				Value:    tokenString,
+				Expires:  time.Now().Add(30 * 24 * time.Hour),
+				HTTPOnly: true,
+				Secure:   true,
+				SameSite: "None",
+				Path:     "/",
+			})
 		}
 	}
 
@@ -228,6 +237,15 @@ func (userHandler *UserHandler) HandleDAuthLogin(requestContext *fiber.Ctx) erro
 		signed, err := token.SignedString([]byte(userHandler.jwtSecret))
 		if err == nil {
 			tokenString = signed
+			requestContext.Cookie(&fiber.Cookie{
+				Name:     "token",
+				Value:    tokenString,
+				Expires:  time.Now().Add(30 * 24 * time.Hour),
+				HTTPOnly: true,
+				Secure:   true,
+				SameSite: "None",
+				Path:     "/",
+			})
 		}
 	}
 
@@ -238,4 +256,22 @@ func (userHandler *UserHandler) HandleDAuthLogin(requestContext *fiber.Ctx) erro
 		"token":   tokenString,
 	})
 }
+
+func (userHandler *UserHandler) HandleLogout(requestContext *fiber.Ctx) error {
+	requestContext.Cookie(&fiber.Cookie{
+		Name:     "token",
+		Value:    "",
+		Expires:  time.Now().Add(-1 * time.Hour),
+		HTTPOnly: true,
+		Secure:   true,
+		SameSite: "None",
+		Path:     "/",
+	})
+
+	return requestContext.Status(fiber.StatusOK).JSON(fiber.Map{
+		"success": true,
+		"message": "Logged out successfully",
+	})
+}
+
 
