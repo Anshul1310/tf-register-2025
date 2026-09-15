@@ -10,26 +10,46 @@ import { toast } from "sonner";
 const CreateTeam = () => {
     const [userName, setUsername] = useState<string | undefined>(undefined);
     const [userInfo, setUserInfo] = useState<any | null>(null);
+    const [isLoading, setIsLoading] = useState<boolean>(true);
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
     useEffect(() => {
         const fetchUser = async () => {
+            setIsLoading(true);
             try {
                 const {
                     data: { user },
                     error: userError,
                 } = await supabase.auth.getUser();
                 if (userError || !user) {
-                    if (userError) console.error(userError);
+                    window.location.href = "/login";
                     return;
                 }
                 const response = await apiClient.getUserById(user.id);
                 if (response.success && response.data) {
-                    setUsername(response.data.name);
+                    const userData = response.data;
+                    const isProfileComplete = Boolean(userData.hostel && userData.mess && userData.roll_number);
+                    if (!isProfileComplete) {
+                        toast.error("Please complete your profile before creating a team.");
+                        window.location.href = "/profile";
+                        return;
+                    }
+                    if (userData.team_id) {
+                        toast.info("You are already part of a team.");
+                        window.location.href = `/team/${userData.team_id}`;
+                        return;
+                    }
+                    setUsername(userData.name);
+                } else {
+                    window.location.href = "/login";
+                    return;
                 }
                 setUserInfo(user);
             } catch (error) {
                 console.error(error);
+                window.location.href = "/login";
+            } finally {
+                setIsLoading(false);
             }
         };
         fetchUser();
@@ -71,6 +91,14 @@ const CreateTeam = () => {
             setIsSubmitting(false);
         }
     };
+
+    if (isLoading) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white">
+                <Loader2 className="w-12 h-12 animate-spin mb-4" />
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col min-h-screen bg-black text-white">

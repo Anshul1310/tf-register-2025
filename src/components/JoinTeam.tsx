@@ -36,11 +36,28 @@ const JoinTeam = () => {
                 const {
                     data: { user },
                 } = await auth.getUser();
-                if (user) {
-                    const userResponse = await apiClient.getUserById(user.id);
-                    if (userResponse.success && userResponse.data) {
-                        setUsername(userResponse.data.name);
+                if (!user) {
+                    window.location.href = "/login";
+                    return;
+                }
+                const userResponse = await apiClient.getUserById(user.id);
+                if (userResponse.success && userResponse.data) {
+                    const userData = userResponse.data;
+                    const isProfileComplete = Boolean(userData.hostel && userData.mess && userData.roll_number);
+                    if (!isProfileComplete) {
+                        toast.error("Please complete your profile before joining a team.");
+                        window.location.href = "/profile";
+                        return;
                     }
+                    if (userData.team_id) {
+                        toast.info("You are already part of a team.");
+                        window.location.href = `/team/${userData.team_id}`;
+                        return;
+                    }
+                    setUsername(userData.name);
+                } else {
+                    window.location.href = "/login";
+                    return;
                 }
 
                 const publicTeamsResponse = await apiClient.getPublicTeams();
@@ -56,6 +73,7 @@ const JoinTeam = () => {
                 }
             } catch (error) {
                 console.error("Error fetching data:", error);
+                window.location.href = "/login";
             }
         };
         fetchUserAndTeams();

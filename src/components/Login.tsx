@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { ArrowUpRight, Loader2, ShieldCheck, Lock, Mail, User, KeyRound, Clock } from "lucide-react";
+import { ArrowUpRight, Loader2, ShieldCheck, Lock, Mail, KeyRound, Clock } from "lucide-react";
 import { auth } from "@/utiils/auth";
 import { apiClient } from "@/utiils/api";
 import { toast } from "sonner";
@@ -22,7 +22,6 @@ const Login = () => {
     // Email sign-in form state
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
-    const [fullName, setFullName] = useState("");
     const [isEmailSubmitting, setIsEmailSubmitting] = useState(false);
 
     // Handle DAuth OAuth callback (?code=...)
@@ -63,7 +62,14 @@ const Login = () => {
                             res.token
                         );
                         toast.success(`Welcome, ${userData.name || userData.email}!`);
-                        window.location.href = "/";
+
+                        // Mandatory profile completion check
+                        const isProfileComplete = Boolean(userData.hostel && userData.mess && userData.roll_number);
+                        if (!isProfileComplete) {
+                            window.location.href = "/profile";
+                        } else {
+                            window.location.href = "/";
+                        }
                     } else {
                         toast.error(res.message || "Failed to authenticate with DAuth.");
                         window.history.replaceState({}, document.title, window.location.pathname);
@@ -119,7 +125,6 @@ const Login = () => {
             const loginRes = await apiClient.loginWithEmail({
                 email: trimmedEmail,
                 password: password.trim(),
-                name: fullName.trim(),
             });
 
             if (loginRes.success && loginRes.data) {
@@ -140,7 +145,14 @@ const Login = () => {
                     loginRes.token
                 );
                 toast.success(`Welcome back, ${userData.name || userData.email}!`);
-                window.location.href = "/";
+
+                // Mandatory profile completion check
+                const isProfileComplete = Boolean(userData.hostel && userData.mess && userData.roll_number);
+                if (!isProfileComplete) {
+                    window.location.href = "/profile";
+                } else {
+                    window.location.href = "/";
+                }
             } else {
                 toast.error(loginRes.message || "Invalid email or password.");
             }
@@ -252,22 +264,6 @@ const Login = () => {
                             {/* Email / Password Sign In Option */}
                             {enableEmailAuth && (
                                 <form onSubmit={handleEmailLogin} className="space-y-3 text-left">
-                                    <div>
-                                        <label className="text-xs text-neutral-400 font-medium block mb-1">
-                                            Full Name (Optional)
-                                        </label>
-                                        <div className="relative">
-                                            <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
-                                            <Input
-                                                type="text"
-                                                value={fullName}
-                                                onChange={(e) => setFullName(e.target.value)}
-                                                placeholder="Your Name"
-                                                className="bg-[#171717] border-neutral-800 text-white pl-9 rounded-xl focus:border-emerald-500 text-sm"
-                                            />
-                                        </div>
-                                    </div>
-
                                     <div>
                                         <label className="text-xs text-neutral-400 font-medium block mb-1">
                                             Email Address

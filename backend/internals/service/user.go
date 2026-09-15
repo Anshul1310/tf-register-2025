@@ -350,7 +350,7 @@ func (userService *UserService) LoginWithEmail(requestContext context.Context, l
 		return nil, errors.New("email is required")
 	}
 
-	// If master user credentials
+	// 1. If master user credentials
 	if cleanEmail == "anshul@gmail.com" {
 		if strings.TrimSpace(loginReq.Password) != "anshul" {
 			return nil, errors.New("invalid password for master user")
@@ -362,31 +362,13 @@ func (userService *UserService) LoginWithEmail(requestContext context.Context, l
 		}
 	}
 
-	// For general email login
+	// 2. Only allow users who already exist in database
 	existingUser, err := userService.userRepository.FindUserByEmail(requestContext, cleanEmail)
-	if err == nil && existingUser != nil {
-		return existingUser, nil
+	if err != nil || existingUser == nil {
+		return nil, errors.New("user not found in database. Only pre-registered users can sign in with password")
 	}
 
-	userName := strings.TrimSpace(loginReq.Name)
-	if userName == "" {
-		userName = strings.Split(cleanEmail, "@")[0]
-	}
-	userUUID := uuid.NewSHA1(uuid.NameSpaceURL, []byte("email:"+cleanEmail))
-	pfpURL := fmt.Sprintf("https://api.dicebear.com/7.x/initials/svg?seed=%s", url.QueryEscape(userName))
-
-	newUser := &models.User{
-		UserID: userUUID,
-		Email:  cleanEmail,
-		Name:   userName,
-		Pfp:    &pfpURL,
-	}
-
-	saved, upsertErr := userService.userRepository.UpsertUser(requestContext, newUser)
-	if upsertErr != nil {
-		return nil, fmt.Errorf("failed to create user: %w", upsertErr)
-	}
-	return saved, nil
+	return existingUser, nil
 }
 
 

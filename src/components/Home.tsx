@@ -52,10 +52,12 @@ const Home = () => {
                 setUsername(userData?.name);
                 setIsPartofTeam(userData?.team_id ? true : false);
                 setTeamId(userData?.team_id);
-                setHasRollNumber(!!userData?.roll_number);
+                const isProfileComplete = Boolean(userData?.hostel && userData?.mess && userData?.roll_number);
+                setHasRollNumber(isProfileComplete);
 
-                if (!userData?.roll_number) {
+                if (!isProfileComplete) {
                     window.location.href = "/profile";
+                    return;
                 }
             } catch (error) {
                 console.error("Error communicating with backend:", error);

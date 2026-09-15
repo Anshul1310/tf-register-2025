@@ -57,8 +57,7 @@ export const apiClient = {
 
   async loginWithEmail(payload: {
     email: string;
-    password?: string;
-    name?: string;
+    password: string;
   }): Promise<ApiResponse> {
     const headers = await getAuthHeaders();
     const response = await fetch(`${BACKEND_URL}/user/login`, {
