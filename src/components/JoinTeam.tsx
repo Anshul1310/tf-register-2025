@@ -116,13 +116,29 @@ const JoinTeam = () => {
         }
     };
 
-    const handleSelectPublicTeam = (team: PublicTeamItem) => {
-        setTeamCode(team.team_id);
-        setPopUp(false);
-        toast.info(`Selected team: ${team.team_name}`, {
-            description: `Code ${team.team_id} filled. Joining team...`,
-        });
-        handleJoinWithCode(team.team_id);
+    const handleApplyPublicTeam = async (team: PublicTeamItem) => {
+        if (isJoining) return;
+        setIsJoining(true);
+        try {
+            const applyResponse = await apiClient.applyToJoinTeam(team.team_id);
+            if (!applyResponse.success) {
+                toast.error("Could not apply to team", {
+                    description: applyResponse.message || "Failed to submit join application.",
+                });
+                setIsJoining(false);
+                return;
+            }
+
+            setPopUp(false);
+            toast.success(`Application Sent to ${team.team_name}!`, {
+                description: "The team leader will review and accept/decline your request.",
+            });
+        } catch (error) {
+            console.error("Error applying to team:", error);
+            toast.error("Error submitting application. Please try again.");
+        } finally {
+            setIsJoining(false);
+        }
     };
 
     return (
@@ -141,10 +157,10 @@ const JoinTeam = () => {
                                 <div className="w-full flex justify-between items-center mb-6">
                                     <div>
                                         <h3 className="text-2xl font-bold flex items-center gap-2">
-                                            <Users className="w-6 h-6 text-yellow-400" /> Join a Public Team
+                                            <Users className="w-6 h-6 text-yellow-400" /> Apply to a Public Team
                                         </h3>
                                         <p className="text-xs text-neutral-400 mt-1">
-                                            Click on any team card to join it instantly.
+                                            Click on any team card to send a join request to the team leader.
                                         </p>
                                     </div>
                                     <button
@@ -189,16 +205,16 @@ const JoinTeam = () => {
                                     })}
                                 </div>
 
-                                {/* Teams Cards Container */}
+                                {/* Team Grid */}
                                 {publicTeams.length > 0 ? (
                                     <div
                                         ref={scrollContainerRef}
-                                        className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full px-2"
+                                        className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full"
                                     >
                                         {publicTeams.map((team, index) => (
                                             <div
                                                 key={team.team_id || index}
-                                                onClick={() => handleSelectPublicTeam(team)}
+                                                onClick={() => handleApplyPublicTeam(team)}
                                                 className="cursor-pointer group relative bg-neutral-900 border border-neutral-800 hover:border-neutral-500 rounded-xl p-5 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] flex flex-col justify-between"
                                                 style={{
                                                     backgroundImage: `linear-gradient(rgba(18, 18, 18, 0.92), rgba(18, 18, 18, 0.95)), url('/team-card2.svg')`,
@@ -231,10 +247,10 @@ const JoinTeam = () => {
                                                         className="bg-white hover:bg-neutral-200 text-black font-semibold text-xs px-3 py-1 h-7 rounded-md"
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            handleSelectPublicTeam(team);
+                                                            handleApplyPublicTeam(team);
                                                         }}
                                                     >
-                                                        Join Team →
+                                                        {isJoining ? "Applying..." : "Apply to Join →"}
                                                     </Button>
                                                 </div>
                                             </div>

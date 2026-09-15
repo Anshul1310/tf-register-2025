@@ -123,6 +123,16 @@ class StandaloneAuth {
     this.token = null;
     localStorage.removeItem(STORAGE_USER_KEY);
     localStorage.removeItem(STORAGE_TOKEN_KEY);
+    try {
+      const rawBackendUrl = import.meta.env.VITE_PROD_URL_BACKEND || "http://localhost:8000";
+      const backendUrl = rawBackendUrl.startsWith("http") ? rawBackendUrl : `http://${rawBackendUrl}`;
+      await fetch(`${backendUrl}/user/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch (e) {
+      console.error("Logout cookie clear error:", e);
+    }
   }
 
   public signInWithDAuth(userData: {

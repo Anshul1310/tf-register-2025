@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Copy, Loader2 } from "lucide-react";
 import { supabase } from "@/utiils/supabase";
 import { apiClient } from "@/utiils/api";
+import { getYearOfStudy } from "@/utiils/yearOfStudy";
 import NavBar from "./Navbar";
 import { IoExitOutline } from "react-icons/io5";
 import { FaGlobe, FaLock, FaRegTrashAlt } from "react-icons/fa";
@@ -199,6 +200,60 @@ const Dashboard = () => {
   }, [team]);
 
 
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [isRequestActionLoading, setIsRequestActionLoading] = useState<Record<string, boolean>>({});
+
+  const fetchJoinRequests = async (tId: string) => {
+    try {
+      const res = await apiClient.getTeamJoinRequests(tId);
+      if (res.success && res.data) {
+        setPendingRequests(res.data);
+      }
+    } catch (e) {
+      console.error("Error fetching join requests:", e);
+    }
+  };
+
+  const handleAcceptRequest = async (requestId: string) => {
+    if (!team) return;
+    setIsRequestActionLoading((prev) => ({ ...prev, [requestId]: true }));
+    try {
+      const res = await apiClient.acceptJoinRequest(team.team_id, requestId);
+      if (res.success) {
+        toast.success("Accepted join request!");
+        const teamRes = await apiClient.getTeamById(team.team_id);
+        if (teamRes.success && teamRes.data) {
+          setTeam(teamRes.data);
+        }
+        fetchJoinRequests(team.team_id);
+      } else {
+        toast.error(res.message || "Failed to accept join request");
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Error accepting request");
+    } finally {
+      setIsRequestActionLoading((prev) => ({ ...prev, [requestId]: false }));
+    }
+  };
+
+  const handleRejectRequest = async (requestId: string) => {
+    if (!team) return;
+    setIsRequestActionLoading((prev) => ({ ...prev, [requestId]: true }));
+    try {
+      const res = await apiClient.rejectJoinRequest(team.team_id, requestId);
+      if (res.success) {
+        toast.info("Join request declined");
+        fetchJoinRequests(team.team_id);
+      } else {
+        toast.error(res.message || "Failed to decline join request");
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Error declining request");
+    } finally {
+      setIsRequestActionLoading((prev) => ({ ...prev, [requestId]: false }));
+    }
+  };
+
   useEffect(() => {
     setIsLoading(true);
     const fetchDetails = async () => {
@@ -223,13 +278,26 @@ const Dashboard = () => {
         if (teamId) {
           const teamResponse = await apiClient.getTeamById(teamId);
           if (!teamResponse.success || !teamResponse.data) {
-            console.error("Error fetching team:", teamResponse.message);
+            toast.error(teamResponse.message || "Access restricted: You must be a member of this team to view its details.");
             setIsLoading(false);
+            navigate("/");
             return;
           }
           const fetchedTeam = teamResponse.data;
+          const isMemberOrLeader =
+            fetchedTeam.leader_user_id === user.id ||
+            fetchedTeam.members?.some((m: any) => m.user_id === user.id);
+
+          if (!isMemberOrLeader) {
+            toast.error("Access restricted: You are not a member of this team");
+            setIsLoading(false);
+            navigate("/");
+            return;
+          }
+
           if (fetchedTeam.leader_user_id === user.id) {
             setIsLead(true);
+            fetchJoinRequests(fetchedTeam.team_id);
           }
           setTeam(fetchedTeam);
         }
@@ -687,6 +755,84 @@ const Dashboard = () => {
                 </span>
               </div>
               <div className="h-full w-full space-y-6 pt-8">
+                {/* Pending Join Requests for Leader */}
+                {isLead && pendingRequests.length > 0 && (
+                  <div className="w-full bg-[#141414] border border-yellow-500/40 rounded-2xl p-5 mb-6 space-y-4 shadow-xl">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-base md:text-lg font-bold text-white flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 animate-pulse"></span>
+                        Pending Join Requests ({pendingRequests.length})
+                      </h3>
+                      <span className="text-xs text-neutral-400">
+                        Review & approve new members
+                      </span>
+                    </div>
+                    <div className="space-y-3">
+                      {pendingRequests.map((req) => {
+                        const yearInfo = getYearOfStudy(req.user_roll_number);
+                        const isActing = isRequestActionLoading[req.request_id];
+                        return (
+                          <div
+                            key={req.request_id}
+                            className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3.5 bg-black/70 border border-neutral-800 rounded-xl gap-3"
+                          >
+                            <div className="flex items-center gap-3">
+                              <Avatar>
+                                <AvatarImage src={req.user_pfp} />
+                                <AvatarFallback className="text-black bg-neutral-200">
+                                  {req.user_name?.charAt(0).toUpperCase() || "U"}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-semibold text-white text-sm">
+                                    {req.user_name}
+                                  </span>
+                                  {yearInfo.yearName && (
+                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                                      🎓 {yearInfo.yearName}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-neutral-400 flex items-center gap-2 flex-wrap mt-0.5">
+                                  <span>{req.user_email}</span>
+                                  {req.user_roll_number && <span>• {req.user_roll_number}</span>}
+                                  {req.user_gender && (
+                                    <span className="capitalize">• {req.user_gender}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 self-end sm:self-auto">
+                              <Button
+                                size="sm"
+                                disabled={isActing}
+                                onClick={() => handleAcceptRequest(req.request_id)}
+                                className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 h-8 rounded-lg transition-colors"
+                              >
+                                {isActing ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  "Accept"
+                                )}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={isActing}
+                                onClick={() => handleRejectRequest(req.request_id)}
+                                className="border-neutral-700 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs px-3 py-1.5 h-8 rounded-lg transition-colors"
+                              >
+                                Decline
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-4 h-full w-full py-4 pb-8">
                   <div className="pb-8 w-full h-full flex flex-col justify-between">
                     <ul className="flex flex-wrap gap-6 w-full">

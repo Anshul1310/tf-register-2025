@@ -58,21 +58,24 @@ func LoadConfig() *Config {
 		jwtSecretKey = "tf-register-secret-key-2025"
 	}
 
-	frontendApplicationURL := os.Getenv("VITE_PROD_URL_FRONTEND")
-	if frontendApplicationURL == "" {
-		frontendApplicationURL = "https://tf-register-2025-rr5l.vercel.app"
+	frontendApplicationURL := "https://tf-register-2025-rr5l.vercel.app"
+	if envFrontend := os.Getenv("VITE_PROD_URL_FRONTEND"); envFrontend != "" {
+		frontendApplicationURL = envFrontend
 	}
 
 	rawAllowedOrigins := os.Getenv("ALLOWED_ORIGINS")
 	originsMap := make(map[string]bool)
 
-	// Default development and common production origins
+	// Hardcoded development and production origins
 	defaultOrigins := []string{
 		"http://localhost:5173",
-		"http://localhost:3000",
-		"http://localhost:4173",
 		"http://127.0.0.1:5173",
+		"http://localhost:5163",
+		"http://127.0.0.1:5163",
+		"http://localhost:3000",
 		"http://127.0.0.1:3000",
+		"http://localhost:4173",
+		"http://127.0.0.1:4173",
 		"https://tf-register-2025-rr5l.vercel.app",
 		"https://tf-register-frontend.netlify.app",
 	}

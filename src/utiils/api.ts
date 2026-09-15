@@ -45,6 +45,7 @@ export const apiClient = {
     const response = await fetch(`${BACKEND_URL}/user/dauth`, {
       method: "POST",
       headers,
+      credentials: "include",
       body: JSON.stringify(payload),
     });
     const result = await response.json();
@@ -64,6 +65,7 @@ export const apiClient = {
     const response = await fetch(`${BACKEND_URL}/user/sync`, {
       method: "POST",
       headers,
+      credentials: "include",
       body: JSON.stringify(userData),
     });
     const result = await response.json();
@@ -73,11 +75,22 @@ export const apiClient = {
     return result;
   },
 
+  async logout(): Promise<ApiResponse> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BACKEND_URL}/user/logout`, {
+      method: "POST",
+      headers,
+      credentials: "include",
+    });
+    return response.json();
+  },
+
   async getCurrentUser(): Promise<ApiResponse> {
     const headers = await getAuthHeaders();
     const response = await fetch(`${BACKEND_URL}/user/me`, {
       method: "GET",
       headers,
+      credentials: "include",
     });
     return response.json();
   },
@@ -87,6 +100,7 @@ export const apiClient = {
     const response = await fetch(`${BACKEND_URL}/user/${userId}`, {
       method: "GET",
       headers,
+      credentials: "include",
     });
     return response.json();
   },
@@ -103,6 +117,7 @@ export const apiClient = {
     const response = await fetch(`${BACKEND_URL}/user/profile`, {
       method: "PUT",
       headers,
+      credentials: "include",
       body: JSON.stringify(profileData),
     });
     return response.json();
@@ -113,6 +128,7 @@ export const apiClient = {
     const response = await fetch(`${BACKEND_URL}/user/leave-team`, {
       method: "POST",
       headers,
+      credentials: "include",
     });
     return response.json();
   },
@@ -129,6 +145,7 @@ export const apiClient = {
     const response = await fetch(`${BACKEND_URL}/team/create`, {
       method: "POST",
       headers,
+      credentials: "include",
       body: JSON.stringify(teamData),
     });
     return response.json();
@@ -139,7 +156,49 @@ export const apiClient = {
     const response = await fetch(`${BACKEND_URL}/team/join`, {
       method: "POST",
       headers,
+      credentials: "include",
       body: JSON.stringify({ teamCode }),
+    });
+    return response.json();
+  },
+
+  async applyToJoinTeam(teamId: string): Promise<ApiResponse> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BACKEND_URL}/team/apply`, {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: JSON.stringify({ team_id: teamId }),
+    });
+    return response.json();
+  },
+
+  async getTeamJoinRequests(teamId: string): Promise<ApiResponse> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BACKEND_URL}/team/${teamId}/requests`, {
+      method: "GET",
+      headers,
+      credentials: "include",
+    });
+    return response.json();
+  },
+
+  async acceptJoinRequest(teamId: string, requestId: string): Promise<ApiResponse> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BACKEND_URL}/team/${teamId}/requests/${requestId}/accept`, {
+      method: "POST",
+      headers,
+      credentials: "include",
+    });
+    return response.json();
+  },
+
+  async rejectJoinRequest(teamId: string, requestId: string): Promise<ApiResponse> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BACKEND_URL}/team/${teamId}/requests/${requestId}/reject`, {
+      method: "POST",
+      headers,
+      credentials: "include",
     });
     return response.json();
   },
@@ -149,6 +208,7 @@ export const apiClient = {
     const response = await fetch(`${BACKEND_URL}/team/${teamId}`, {
       method: "GET",
       headers,
+      credentials: "include",
     });
     return response.json();
   },
@@ -163,6 +223,7 @@ export const apiClient = {
     const response = await fetch(`${BACKEND_URL}/team/public${queryString}`, {
       method: "GET",
       headers,
+      credentials: "include",
     });
     return response.json();
   },
@@ -172,6 +233,7 @@ export const apiClient = {
     const response = await fetch(`${BACKEND_URL}/team/${teamId}/members/count`, {
       method: "GET",
       headers,
+      credentials: "include",
     });
     return response.json();
   },
@@ -181,6 +243,7 @@ export const apiClient = {
     const response = await fetch(`${BACKEND_URL}/team/stats/payment`, {
       method: "GET",
       headers,
+      credentials: "include",
     });
     return response.json();
   },
@@ -190,6 +253,7 @@ export const apiClient = {
     const response = await fetch(`${BACKEND_URL}/team/${teamId}/visibility`, {
       method: "PATCH",
       headers,
+      credentials: "include",
       body: JSON.stringify({ ispublic: isPublic }),
     });
     return response.json();
@@ -200,6 +264,7 @@ export const apiClient = {
     const response = await fetch(`${BACKEND_URL}/team/${teamId}/name`, {
       method: "PATCH",
       headers,
+      credentials: "include",
       body: JSON.stringify({ name }),
     });
     return response.json();
@@ -214,6 +279,7 @@ export const apiClient = {
     const response = await fetch(`${BACKEND_URL}/team/${teamId}/details`, {
       method: "PATCH",
       headers,
+      credentials: "include",
       body: JSON.stringify({
         domain: domain || null,
         problem_statement: problemStatement || null,
@@ -227,6 +293,7 @@ export const apiClient = {
     const response = await fetch(`${BACKEND_URL}/team/${teamId}/regenerate-id`, {
       method: "POST",
       headers,
+      credentials: "include",
     });
     return response.json();
   },
@@ -236,6 +303,7 @@ export const apiClient = {
     const response = await fetch(`${BACKEND_URL}/team/${teamId}`, {
       method: "DELETE",
       headers,
+      credentials: "include",
     });
     return response.json();
   },
@@ -249,6 +317,7 @@ export const apiClient = {
     const response = await fetch(`${BACKEND_URL}/api/checkout`, {
       method: "POST",
       headers,
+      credentials: "include",
       body: JSON.stringify(orderData),
     });
     return response.json();
@@ -259,6 +328,7 @@ export const apiClient = {
     const response = await fetch(`${BACKEND_URL}/api/payment/verify`, {
       method: "POST",
       headers,
+      credentials: "include",
       body: JSON.stringify({ order_id: orderId, team_id: teamId }),
     });
     return response.json();
@@ -281,6 +351,7 @@ export const apiClient = {
     const response = await fetch(`${BACKEND_URL}/team/${teamId}/pay`, {
       method: "POST",
       headers,
+      credentials: "include",
       body: formData,
     });
     return response.json();
