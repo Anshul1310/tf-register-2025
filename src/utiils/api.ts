@@ -266,6 +266,16 @@ export const apiClient = {
     return response.json();
   },
 
+  async getAnnouncements(): Promise<ApiResponse> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BACKEND_URL}/announcements`, {
+      method: "GET",
+      headers,
+      credentials: "include",
+    });
+    return response.json();
+  },
+
   async updateTeamVisibility(teamId: string, isPublic: boolean): Promise<ApiResponse> {
     const headers = await getAuthHeaders();
     const response = await fetch(`${BACKEND_URL}/team/${teamId}/visibility`, {
@@ -405,6 +415,23 @@ export const apiClient = {
       headers,
       credentials: "include",
       body: formData,
+    });
+    return response.json();
+  },
+
+  async submitIssue(payload: {
+    issue_type: string;
+    title: string;
+    description: string;
+    user_name?: string;
+    team_id?: string;
+  }): Promise<ApiResponse> {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${BACKEND_URL}/issue`, {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: JSON.stringify(payload),
     });
     return response.json();
   },
