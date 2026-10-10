@@ -362,6 +362,40 @@ export const apiClient = {
     return response.json();
   },
 
+  async getPaymentConfig(): Promise<{
+    success: boolean;
+    amount: number;
+    currency: string;
+    environment: "sandbox" | "production";
+    min_team_members?: number;
+    max_team_members?: number;
+    team_cap?: number;
+  }> {
+    try {
+      const response = await fetch(`${BACKEND_URL}/payment/config`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      });
+      if (response.ok) {
+        return await response.json();
+      }
+    } catch (e) {
+      console.warn("Could not fetch payment config, using defaults:", e);
+    }
+    return {
+      success: false,
+      amount: 200,
+      currency: "INR",
+      environment: "sandbox",
+      min_team_members: 1,
+      max_team_members: 5,
+      team_cap: 50,
+    };
+  },
+
   async submitManualPayment(teamId: string, formData: FormData): Promise<ApiResponse> {
     let authHeader = "";
     try {

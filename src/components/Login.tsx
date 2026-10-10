@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { ArrowUpRight, Loader2, ShieldCheck, Lock, Mail, KeyRound, Clock } from "lucide-react";
@@ -19,6 +19,7 @@ const processedDAuthCodeKey = "tf_processed_dauth_code";
 const Login = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
+    const hasProcessedCodeRef = useRef(false);
 
     // Email sign-in form state
     const [email, setEmail] = useState("");

@@ -3,6 +3,9 @@ package service
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -270,27 +273,75 @@ func (cashfreeService *CashfreeService) VerifyPaymentOrder(
 	return isPaid, nil
 }
 
+func (cashfreeService *CashfreeService) VerifyWebhookSignature(
+	rawWebhookPayload []byte,
+	signature string,
+	timestamp string,
+) error {
+	secretKey := strings.TrimSpace(cashfreeService.configuration.CashfreeSecretKey)
+	if secretKey == "" {
+		log.Println("[Cashfree] Warning: CASHFREE_SECRET_KEY not set in environment; skipping webhook signature verification in test/sandbox")
+		return nil
+	}
+
+	trimmedSignature := strings.TrimSpace(signature)
+	trimmedTimestamp := strings.TrimSpace(timestamp)
+
+	if trimmedSignature == "" || trimmedTimestamp == "" {
+		return errors.New("missing webhook signature or timestamp headers (x-webhook-signature / x-webhook-timestamp)")
+	}
+
+	// Cashfree PG signature algorithm: HMAC-SHA256(timestamp + raw_payload, secret_key) -> base64
+	messageToSign := trimmedTimestamp + string(rawWebhookPayload)
+	mac := hmac.New(sha256.New, []byte(secretKey))
+	mac.Write([]byte(messageToSign))
+	computedSignature := base64.StdEncoding.EncodeToString(mac.Sum(nil))
+
+	if !hmac.Equal([]byte(trimmedSignature), []byte(computedSignature)) {
+		return errors.New("invalid cashfree webhook signature: signature mismatch")
+	}
+
+	return nil
+}
+
 func (cashfreeService *CashfreeService) ProcessWebhook(
 	requestContext context.Context,
 	rawWebhookPayload []byte,
+	signature string,
+	timestamp string,
 ) error {
+	// Step 1: Verify webhook signature
+	if err := cashfreeService.VerifyWebhookSignature(rawWebhookPayload, signature, timestamp); err != nil {
+		return fmt.Errorf("webhook signature verification failed: %w", err)
+	}
+
+	// Step 2: Parse Cashfree webhook event payload
 	var webhookData struct {
 		Data struct {
 			Order struct {
-				OrderID     string  `json:"order_id"`
-				OrderAmount float64 `json:"order_amount"`
-				OrderStatus string  `json:"order_status"`
+				OrderID       string  `json:"order_id"`
+				OrderAmount   float64 `json:"order_amount"`
+				OrderStatus   string  `json:"order_status"`
+				OrderCurrency string  `json:"order_currency"`
 			} `json:"order"`
 			Payment struct {
-				PaymentStatus string `json:"payment_status"`
-				PaymentTime   string `json:"payment_time"`
-				CfPaymentID   int64  `json:"cf_payment_id"`
+				PaymentStatus   string      `json:"payment_status"`
+				PaymentTime     string      `json:"payment_time"`
+				CfPaymentID     interface{} `json:"cf_payment_id"`
+				PaymentAmount   float64     `json:"payment_amount"`
+				PaymentCurrency string      `json:"payment_currency"`
+				PaymentMessage  string      `json:"payment_message"`
+				BankReference   string      `json:"bank_reference"`
 			} `json:"payment"`
 			CustomerDetails struct {
-				CustomerID string `json:"customer_id"`
+				CustomerID    string `json:"customer_id"`
+				CustomerName  string `json:"customer_name"`
+				CustomerEmail string `json:"customer_email"`
+				CustomerPhone string `json:"customer_phone"`
 			} `json:"customer_details"`
 		} `json:"data"`
-		Type string `json:"type"`
+		EventTime string `json:"event_time"`
+		Type      string `json:"type"`
 	}
 
 	unmarshalError := json.Unmarshal(rawWebhookPayload, &webhookData)
@@ -298,17 +349,93 @@ func (cashfreeService *CashfreeService) ProcessWebhook(
 		return fmt.Errorf("failed to parse webhook json: %w", unmarshalError)
 	}
 
-	orderIdentifier := webhookData.Data.Order.OrderID
-	teamIdentifier := webhookData.Data.CustomerDetails.CustomerID
-	orderStatus := strings.ToUpper(webhookData.Data.Order.OrderStatus)
-	paymentStatus := strings.ToUpper(webhookData.Data.Payment.PaymentStatus)
+	orderIdentifier := strings.TrimSpace(webhookData.Data.Order.OrderID)
+	teamIdentifier := strings.TrimSpace(webhookData.Data.CustomerDetails.CustomerID)
+	orderStatus := strings.ToUpper(strings.TrimSpace(webhookData.Data.Order.OrderStatus))
+	paymentStatus := strings.ToUpper(strings.TrimSpace(webhookData.Data.Payment.PaymentStatus))
+	eventType := strings.ToUpper(strings.TrimSpace(webhookData.Type))
 
-	if orderStatus == "PAID" || paymentStatus == "SUCCESS" {
-		log.Printf("Received Cashfree webhook: Payment successful for team %s (order: %s)", teamIdentifier, orderIdentifier)
-		if teamIdentifier != "" {
-			_ = cashfreeService.teamRepository.UpdatePaymentStatus(requestContext, teamIdentifier, "PAID")
+	// Fallback: Extract teamIdentifier from orderIdentifier (format: order_<teamID>_<timestamp>)
+	if teamIdentifier == "" && strings.HasPrefix(orderIdentifier, "order_") {
+		parts := strings.Split(orderIdentifier, "_")
+		if len(parts) >= 3 {
+			teamIdentifier = strings.Join(parts[1:len(parts)-1], "_")
 		}
 	}
 
+	paymentIdStr := fmt.Sprintf("%v", webhookData.Data.Payment.CfPaymentID)
+	orderAmount := webhookData.Data.Order.OrderAmount
+	if orderAmount <= 0 {
+		orderAmount = webhookData.Data.Payment.PaymentAmount
+	}
+	if orderAmount <= 0 {
+		orderAmount = cashfreeService.configuration.PaymentAmount
+	}
+
+	isSuccess := orderStatus == "PAID" || paymentStatus == "SUCCESS" || eventType == "PAYMENT_SUCCESS_WEBHOOK" || eventType == "ORDER_PAID_WEBHOOK"
+	isFailed := orderStatus == "FAILED" || paymentStatus == "FAILED" || eventType == "PAYMENT_FAILED_WEBHOOK" || eventType == "PAYMENT_USER_DROPPED_WEBHOOK"
+
+	if isSuccess {
+		log.Printf("Cashfree webhook: Payment SUCCESS for team %s (order: %s, payment: %s)", teamIdentifier, orderIdentifier, paymentIdStr)
+		if teamIdentifier != "" {
+			updateErr := cashfreeService.teamRepository.UpdatePaymentStatus(requestContext, teamIdentifier, "PAID")
+			if updateErr != nil {
+				log.Printf("Failed to update team payment status to PAID: %v", updateErr)
+			}
+		}
+		_ = cashfreeService.teamRepository.RecordPaymentLog(
+			requestContext,
+			orderIdentifier,
+			orderIdentifier,
+			teamIdentifier,
+			orderAmount,
+			"PAID",
+			"",
+			paymentIdStr,
+			"",
+			string(rawWebhookPayload),
+		)
+	} else if isFailed {
+		log.Printf("Cashfree webhook: Payment FAILED for team %s (order: %s)", teamIdentifier, orderIdentifier)
+		_ = cashfreeService.teamRepository.RecordPaymentLog(
+			requestContext,
+			orderIdentifier,
+			orderIdentifier,
+			teamIdentifier,
+			orderAmount,
+			"FAILED",
+			"",
+			paymentIdStr,
+			"",
+			string(rawWebhookPayload),
+		)
+	} else {
+		log.Printf("Cashfree webhook received event: %s, order: %s, status: %s", eventType, orderIdentifier, orderStatus)
+		_ = cashfreeService.teamRepository.RecordPaymentLog(
+			requestContext,
+			orderIdentifier,
+			orderIdentifier,
+			teamIdentifier,
+			orderAmount,
+			orderStatus,
+			"",
+			paymentIdStr,
+			"",
+			string(rawWebhookPayload),
+		)
+	}
+
 	return nil
+}
+
+func (cashfreeService *CashfreeService) GetPaymentAmount() float64 {
+	return cashfreeService.configuration.PaymentAmount
+}
+
+func (cashfreeService *CashfreeService) GetEnvironment() string {
+	return cashfreeService.configuration.CashfreeEnvironment
+}
+
+func (cashfreeService *CashfreeService) GetApiVersion() string {
+	return cashfreeService.configuration.CashfreeApiVersion
 }
