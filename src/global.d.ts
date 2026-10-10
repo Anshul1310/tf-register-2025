@@ -14,5 +14,5 @@ declare module "@cashfreepayments/cashfree-js" {
     }>;
   }
   
-  export function load(options: { mode: "test" | "production" }): Promise<CashfreeInstance>;
+  export function load(options: { mode: "sandbox" | "production" | "test" }): Promise<CashfreeInstance>;
 }

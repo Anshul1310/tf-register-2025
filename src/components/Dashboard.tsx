@@ -94,8 +94,10 @@ const Dashboard = () => {
   const [isLead, setIsLead] = useState<boolean>(false);
   const [userInfo, setUserInfo] = useState<any>(null);
   const [paymentCount, setPaymentCount] = useState<number>(0);
-  const [simulationOrder, setSimulationOrder] = useState<Order | null>(null);
-  const [isSimulating, setIsSimulating] = useState<boolean>(false);
+  const [paymentPrice, setPaymentPrice] = useState<number>(200);
+  const [minTeamMembers, setMinTeamMembers] = useState<number>(1);
+  const [teamCap, setTeamCap] = useState<number>(50);
+  const [cashfreeMode, setCashfreeMode] = useState<"sandbox" | "production">("sandbox");
 
   const navigate = useNavigate();
   // const schema = z.object({
@@ -314,8 +316,8 @@ const Dashboard = () => {
 
   const init = async (): Promise<Order | undefined> => {
     try {
-      console.log("Initializing Cashfree SDK...");
-      cashfreeRef.current = await load({ mode: "production" });
+      console.log(`Initializing Cashfree SDK in ${cashfreeMode} mode...`);
+      cashfreeRef.current = await load({ mode: cashfreeMode });
       console.log("Cashfree SDK initialized successfully");
 
       if (!teamId) return undefined;
@@ -334,50 +336,65 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    const fetchSuccessCount = async () => {
-      const statsResponse = await apiClient.getPaymentStats();
-      if (statsResponse.success && typeof statsResponse.count === "number") {
-        setPaymentCount(statsResponse.count);
+    const fetchSuccessCountAndConfig = async () => {
+      try {
+        const statsResponse = await apiClient.getPaymentStats();
+        if (statsResponse.success && typeof statsResponse.count === "number") {
+          setPaymentCount(statsResponse.count);
+        }
+        if (statsResponse.success && typeof (statsResponse as any).team_cap === "number") {
+          setTeamCap((statsResponse as any).team_cap);
+        }
+
+        const configResponse = await apiClient.getPaymentConfig();
+        if (configResponse && configResponse.amount > 0) {
+          setPaymentPrice(configResponse.amount);
+        }
+        if (configResponse && configResponse.environment) {
+          setCashfreeMode(configResponse.environment);
+        }
+        if (configResponse && typeof configResponse.min_team_members === "number") {
+          setMinTeamMembers(configResponse.min_team_members);
+        }
+        if (configResponse && typeof configResponse.team_cap === "number") {
+          setTeamCap(configResponse.team_cap);
+        }
+      } catch (err) {
+        console.warn("Could not load payment stats/config:", err);
       }
     };
-    fetchSuccessCount();
+    fetchSuccessCountAndConfig();
   }, []);
 
   const handlePay = async (): Promise<void> => {
     console.log("Handle pay called");
-    console.log("Team members count:", team?.members?.length);
+    console.log("Team members count:", team?.members?.length, "Minimum required from backend env:", minTeamMembers);
     console.log("Team data:", team);
 
-
-    if (team?.members.length && team.members.length < 4) {
-      console.log("Team has less than 4 members; offering test simulation");
-      setSimulationOrder({
-        order_id: `sim_order_${team.team_id}_${Date.now()}`,
-        payment_session_id: `session_mock_${Date.now()}`,
-        order_amount: 200,
+    if (team?.members && team.members.length < minTeamMembers) {
+      toast("Team Incomplete", {
+        description: `This event requires at least ${minTeamMembers} member(s) to register. Current members: ${team.members.length}`,
       });
       return;
     }
 
-    console.log("✅ Team has enough members, proceeding with payment...");
+    if (teamCap > 0 && paymentCount >= teamCap) {
+      toast.error("Registration Cap Reached", {
+        description: `Team registration capacity of ${teamCap} teams has been reached.`,
+      });
+      return;
+    }
+
     try {
       const fetchedOrder = await init();
       if (fetchedOrder) {
         await doPayment(fetchedOrder);
       } else {
-        setSimulationOrder({
-          order_id: `sim_order_${teamId}_${Date.now()}`,
-          payment_session_id: `session_mock_${Date.now()}`,
-          order_amount: 200,
-        });
+        toast.error("Failed to initialize checkout order with server.");
       }
-    } catch (err) {
-      console.warn("Falling back to test simulation:", err);
-      setSimulationOrder({
-        order_id: `sim_order_${teamId}_${Date.now()}`,
-        payment_session_id: `session_mock_${Date.now()}`,
-        order_amount: 200,
-      });
+    } catch (err: any) {
+      console.error("Payment initiation error:", err);
+      toast.error(err.message || "Failed to initialize payment order.");
     }
   };
 
@@ -386,34 +403,36 @@ const Dashboard = () => {
     const queryParams = new URLSearchParams(window.location.search);
     const returnedOrderId = queryParams.get("order_id");
     if (returnedOrderId && teamId) {
+      // Clear order_id query param from address bar immediately
+      window.history.replaceState({}, document.title, window.location.pathname);
+
       apiClient.verifyPayment(returnedOrderId, teamId).then((response) => {
         if (response.success && response.paid) {
           toast("Payment Verified!", {
             description: "Your registration payment has been verified successfully.",
           });
           setTeam((prev) => (prev ? { ...prev, payment_status: "PAID" } : null));
-          window.history.replaceState({}, document.title, window.location.pathname);
+        } else {
+          toast("Payment Verification Pending", {
+            description: response.message || "Could not verify payment yet.",
+          });
         }
+      }).catch((err) => {
+        console.error("Auto verification error:", err);
       });
     }
   }, [teamId]);
 
   const doPayment = async (order: Order): Promise<void> => {
-    // If running in development / sandbox without configured Cashfree keys, prompt simulation
-    if (order.payment_session_id && order.payment_session_id.startsWith("session_mock_")) {
-      setSimulationOrder(order);
+    if (!order.payment_session_id) {
+      console.error("Order not ready yet: missing payment_session_id");
+      toast.error("Missing payment session ID from server");
       return;
     }
 
     if (!cashfreeRef.current) {
-      console.warn("Cashfree SDK not ready, offering simulation");
-      setSimulationOrder(order);
-      return;
-    }
-
-    if (!order.payment_session_id) {
-      console.error("Order not ready yet");
-      return;
+      console.log(`Loading Cashfree SDK in ${cashfreeMode} mode...`);
+      cashfreeRef.current = await load({ mode: cashfreeMode });
     }
 
     const checkoutOptions = {
@@ -426,11 +445,12 @@ const Dashboard = () => {
     };
 
     try {
+      console.log("Launching Cashfree checkout modal with session:", order.payment_session_id);
       const result = await cashfreeRef.current.checkout(checkoutOptions);
 
       if (result.error) {
-        console.warn("Payment error from SDK, opening simulation option:", result.error);
-        setSimulationOrder(order);
+        console.warn("Payment error from Cashfree SDK:", result.error);
+        toast.error(result.error.message || "Cashfree checkout error");
       }
 
       if (result.redirect) {
@@ -439,47 +459,17 @@ const Dashboard = () => {
 
       if (result.paymentDetails) {
         console.log("Payment completed:", result.paymentDetails);
-        toast("Payment Completed!", {
-          description: "Payment has been processed.",
+        toast.success("Payment Received!", {
+          description: "Verifying your registration...",
         });
-      }
-    } catch (error) {
-      console.error("Checkout failed, offering simulation:", error);
-      setSimulationOrder(order);
-    }
-  };
-
-  const handleSimulatePayment = async (status: "SUCCESS" | "FAILED") => {
-    if (!simulationOrder || !team) return;
-    setIsSimulating(true);
-
-    if (status === "SUCCESS") {
-      try {
-        const verifyResponse = await apiClient.verifyPayment(simulationOrder.order_id, team.team_id);
+        const verifyResponse = await apiClient.verifyPayment(order.order_id, teamId || "");
         if (verifyResponse.success && verifyResponse.paid) {
-          toast("Payment Successful!", {
-            description: "Sandbox payment verified. Team status updated to PAID.",
-          });
-          setTeam({ ...team, payment_status: "PAID" });
-          setSimulationOrder(null);
-          // Simulate the Cashfree return redirect with query params
-          window.history.replaceState({}, document.title, `/team/${team.team_id}?order_id=${simulationOrder.order_id}`);
-        } else {
-          toast("Verification Failed", {
-            description: verifyResponse.message || "Failed to verify payment.",
-          });
+          setTeam((prev) => (prev ? { ...prev, payment_status: "PAID" } : null));
         }
-      } catch (err) {
-        console.error("Simulation error:", err);
-      } finally {
-        setIsSimulating(false);
       }
-    } else {
-      toast("Payment Cancelled", {
-        description: "Simulated payment was cancelled.",
-      });
-      setSimulationOrder(null);
-      setIsSimulating(false);
+    } catch (error: any) {
+      console.error("Checkout launch error:", error);
+      toast.error(error.message || "Failed to launch Cashfree modal");
     }
   };
   const onSubmitps = async (data: any) => {
@@ -595,8 +585,8 @@ const Dashboard = () => {
   }
 
   console.log("Team: ", team);
-  console.log(import.meta.env.VITE_TEAM_CAP);
-  console.log(paymentCount <= +import.meta.env.VITE_TEAM_CAP);
+  console.log("Team Cap (backend env):", teamCap);
+  console.log("Can register (paymentCount < teamCap):", teamCap <= 0 || paymentCount < teamCap);
   return (
     <div className="flex flex-col min-h-screen bg-black text-white">
       <NavBar userName={userName} />
@@ -626,51 +616,6 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Cashfree Sandbox / Development Simulation Modal */}
-      {simulationOrder && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a1a] border border-neutral-700 rounded-xl p-6 w-full max-w-md shadow-2xl text-white">
-            <div className="flex items-center justify-between border-b border-neutral-700 pb-3 mb-4">
-              <div className="flex items-center gap-2">
-                <span className="inline-block w-3 h-3 rounded-full bg-yellow-400 animate-pulse"></span>
-                <h3 className="text-lg font-bold text-white">Cashfree Sandbox Simulation</h3>
-              </div>
-              <button
-                onClick={() => setSimulationOrder(null)}
-                className="text-neutral-400 hover:text-white text-lg font-bold px-2"
-              >
-                ✕
-              </button>
-            </div>
-            <p className="text-neutral-300 text-sm mb-4">
-              No live Cashfree credentials configured. You can test the gateway redirect, verification, and unlock flow right now:
-            </p>
-            <div className="bg-neutral-900 rounded-lg p-3 text-xs space-y-1 mb-6 border border-neutral-800">
-              <div><span className="text-neutral-500">Order ID:</span> <span className="font-mono text-neutral-300">{simulationOrder.order_id}</span></div>
-              <div><span className="text-neutral-500">Amount:</span> <span className="text-emerald-400 font-bold">₹{simulationOrder.order_amount || 200}.00 INR</span></div>
-              <div><span className="text-neutral-500">Team:</span> <span className="text-neutral-300">{team.name}</span></div>
-            </div>
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                className="w-1/2 border-neutral-600 text-neutral-300 hover:bg-neutral-800"
-                onClick={() => handleSimulatePayment("FAILED")}
-                disabled={isSimulating}
-              >
-                Cancel / Fail
-              </Button>
-              <Button
-                className="w-1/2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
-                onClick={() => handleSimulatePayment("SUCCESS")}
-                disabled={isSimulating}
-              >
-                {isSimulating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Simulate Success
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
       <div className="flex flex-col justify-between h-full flex-grow">
         <div className="flex-grow flex flex-col lg:flex-row-reverse lg:justify-between items-center lg:items-start px-4 md:px-6 pt-8">
           <div className="flex-grow flex flex-col lg:flex-col  lg:justify-center lg:items-end md:items-center   ">
@@ -690,7 +635,7 @@ const Dashboard = () => {
               <div className="absolute bottom-0 right-0 p-6 pb-4">
                 {((team.payment_status === "Pending" ||
                   team.payment_status === "Failed") &&
-                  paymentCount <= +(import.meta.env.VITE_TEAM_CAP || import.meta.env.TEAM_CAP || 50) &&
+                  (teamCap <= 0 || paymentCount < teamCap) &&
                   isLead) && (
                     <Button
                       className="bg-white text-black rounded-[120px] font-bold hover:bg-gray-100 transition duration-300 flex items-center justify-center gap-2 px-4 py-2"

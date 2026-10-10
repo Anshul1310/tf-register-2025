@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { ArrowUpRight, Loader2, ShieldCheck, Lock, Mail, KeyRound, Clock } from "lucide-react";
@@ -18,6 +18,7 @@ const enableEmailAuth = import.meta.env.VITE_ENABLE_EMAIL_AUTH === "true";
 const Login = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
+    const hasProcessedCodeRef = useRef(false);
 
     // Email sign-in form state
     const [email, setEmail] = useState("");
@@ -37,7 +38,11 @@ const Login = () => {
             return;
         }
 
-        if (code) {
+        if (code && !hasProcessedCodeRef.current) {
+            hasProcessedCodeRef.current = true;
+            // Clear code from URL immediately to prevent reuse
+            window.history.replaceState({}, document.title, window.location.pathname);
+
             const processDAuthCallback = async () => {
                 setIsLoading(true);
                 setLoadingMessage("Authenticating with DAuth...");

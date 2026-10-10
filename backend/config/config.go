@@ -24,6 +24,8 @@ type Config struct {
 	DAuthClientID       string
 	DAuthClientSecret   string
 	DAuthRedirectURI    string
+	AdminEmails         []string
+	GoogleClientID      string
 }
 
 func LoadConfig() *Config {
@@ -70,12 +72,20 @@ func LoadConfig() *Config {
 	defaultOrigins := []string{
 		"http://localhost:5173",
 		"http://127.0.0.1:5173",
+		"http://localhost:5174",
+		"http://127.0.0.1:5174",
+		"http://localhost:5175",
+		"http://127.0.0.1:5175",
 		"http://localhost:5163",
 		"http://127.0.0.1:5163",
 		"http://localhost:3000",
 		"http://127.0.0.1:3000",
+		"http://localhost:3001",
+		"http://127.0.0.1:3001",
 		"http://localhost:4173",
 		"http://127.0.0.1:4173",
+		"http://localhost:4174",
+		"http://127.0.0.1:4174",
 		"https://tf-register-2025-rr5l.vercel.app",
 		"https://tf-register-frontend.netlify.app",
 	}
@@ -122,39 +132,78 @@ func LoadConfig() *Config {
 
 	registrationPaymentAmount := 200.0
 	paymentAmountString := os.Getenv("PAYMENT_AMOUNT")
+	if paymentAmountString == "" {
+		paymentAmountString = os.Getenv("REGISTRATION_FEE")
+	}
+	if paymentAmountString == "" {
+		paymentAmountString = os.Getenv("TEAM_REGISTRATION_PRICE")
+	}
+	if paymentAmountString == "" {
+		paymentAmountString = os.Getenv("REGISTRATION_PRICE")
+	}
 	if paymentAmountString != "" {
-		parsedAmount, parseAmountError := strconv.ParseFloat(paymentAmountString, 64)
+		parsedAmount, parseAmountError := strconv.ParseFloat(strings.TrimSpace(paymentAmountString), 64)
 		if parseAmountError == nil && parsedAmount > 0 {
 			registrationPaymentAmount = parsedAmount
 		}
 	}
 
-	cashfreeApplicationIdentifier := os.Getenv("CASHFREE_APP_ID")
-	cashfreeSecretAPIKey := os.Getenv("CASHFREE_SECRET_KEY")
+	cashfreeApplicationIdentifier := strings.TrimSpace(os.Getenv("CASHFREE_APP_ID"))
+	cashfreeSecretAPIKey := strings.TrimSpace(os.Getenv("CASHFREE_SECRET_KEY"))
 
-	cashfreeEnvironmentMode := os.Getenv("CASHFREE_ENV")
+	cashfreeEnvironmentMode := strings.ToUpper(strings.TrimSpace(os.Getenv("CASHFREE_ENV")))
 	if cashfreeEnvironmentMode == "" {
-		cashfreeEnvironmentMode = "PRODUCTION"
+		cashfreeEnvironmentMode = "SANDBOX"
 	}
 
-	cashfreeAPIVersionHeader := os.Getenv("CASHFREE_API_VERSION")
+	cashfreeAPIVersionHeader := strings.TrimSpace(os.Getenv("CASHFREE_API_VERSION"))
 	if cashfreeAPIVersionHeader == "" {
 		cashfreeAPIVersionHeader = "2023-08-01"
 	}
 
-	dauthClientID := os.Getenv("DAUTH_CLIENT_ID")
+	dauthClientID := strings.TrimSpace(os.Getenv("DAUTH_CLIENT_ID"))
 	if dauthClientID == "" {
-		dauthClientID = os.Getenv("VITE_DAUTH_CLIENT_ID")
+		dauthClientID = strings.TrimSpace(os.Getenv("VITE_DAUTH_CLIENT_ID"))
 	}
 
-	dauthClientSecret := os.Getenv("DAUTH_CLIENT_SECRET")
+	dauthClientSecret := strings.TrimSpace(os.Getenv("DAUTH_CLIENT_SECRET"))
 
-	dauthRedirectURI := os.Getenv("DAUTH_REDIRECT_URI")
+	dauthRedirectURI := strings.TrimSpace(os.Getenv("DAUTH_REDIRECT_URI"))
 	if dauthRedirectURI == "" {
-		dauthRedirectURI = os.Getenv("VITE_DAUTH_REDIRECT_URI")
+		dauthRedirectURI = strings.TrimSpace(os.Getenv("VITE_DAUTH_REDIRECT_URI"))
 	}
 
-	log.Printf("Loaded configuration with port: %s, cashfree mode: %s", serverPort, cashfreeEnvironmentMode)
+	adminEmailsRaw := os.Getenv("ADMIN_EMAILS")
+	var adminEmailsList []string
+	rootSuperadmins := []string{"transfinitte@gmail.com", "negi.anshulnegi17@gmail.com"}
+	for _, root := range rootSuperadmins {
+		adminEmailsList = append(adminEmailsList, strings.ToLower(strings.TrimSpace(root)))
+	}
+
+	if adminEmailsRaw != "" {
+		for _, email := range strings.Split(adminEmailsRaw, ",") {
+			trimmed := strings.ToLower(strings.TrimSpace(email))
+			if trimmed != "" {
+				exists := false
+				for _, existing := range adminEmailsList {
+					if existing == trimmed {
+						exists = true
+						break
+					}
+				}
+				if !exists {
+					adminEmailsList = append(adminEmailsList, trimmed)
+				}
+			}
+		}
+	}
+
+	googleClientID := os.Getenv("GOOGLE_CLIENT_ID")
+	if googleClientID == "" {
+		googleClientID = os.Getenv("VITE_GOOGLE_CLIENT_ID")
+	}
+
+	log.Printf("Loaded configuration with port: %s, cashfree mode: %s, dauth client: %s, admin emails: %v", serverPort, cashfreeEnvironmentMode, dauthClientID, adminEmailsList)
 
 	return &Config{
 		Port:                serverPort,
@@ -171,5 +220,7 @@ func LoadConfig() *Config {
 		DAuthClientID:       dauthClientID,
 		DAuthClientSecret:   dauthClientSecret,
 		DAuthRedirectURI:    dauthRedirectURI,
+		AdminEmails:         adminEmailsList,
+		GoogleClientID:      googleClientID,
 	}
 }
