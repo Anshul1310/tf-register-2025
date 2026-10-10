@@ -13,6 +13,7 @@ import { supabase } from "@/utiils/supabase";
 import { apiClient } from "@/utiils/api";
 import { getYearOfStudy } from "@/utiils/yearOfStudy";
 import NavBar from "./Navbar";
+import { IssueForm } from "./IssueForm";
 import { IoExitOutline } from "react-icons/io5";
 import { FaGlobe, FaLock, FaRegTrashAlt } from "react-icons/fa";
 import {
@@ -886,6 +887,7 @@ const Dashboard = () => {
                           Leave Team <IoExitOutline className="text-xl ml-2" />
                         </Button>
                       }
+                      <IssueForm teamId={team.team_id} userName={userName} />
                       {isLead && team.payment_status !== "PAID" && (
   <>
     {team.ispublic ? (

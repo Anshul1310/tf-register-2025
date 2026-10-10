@@ -14,6 +14,7 @@ const dauthRedirectUri =
 // Toggles for auth methods (configurable via .env)
 const enableDAuth = import.meta.env.VITE_ENABLE_DAUTH !== "false";
 const enableEmailAuth = import.meta.env.VITE_ENABLE_EMAIL_AUTH === "true";
+const processedDAuthCodeKey = "tf_processed_dauth_code";
 
 const Login = () => {
     const [isLoading, setIsLoading] = useState(false);
@@ -38,6 +39,14 @@ const Login = () => {
         }
 
         if (code) {
+            const previousProcessedCode = sessionStorage.getItem(processedDAuthCodeKey);
+            if (previousProcessedCode === code) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+                return;
+            }
+
+            sessionStorage.setItem(processedDAuthCodeKey, code);
+
             const processDAuthCallback = async () => {
                 setIsLoading(true);
                 setLoadingMessage("Authenticating with DAuth...");
@@ -72,11 +81,13 @@ const Login = () => {
                         }
                     } else {
                         toast.error(res.message || "Failed to authenticate with DAuth.");
+                        sessionStorage.removeItem(processedDAuthCodeKey);
                         window.history.replaceState({}, document.title, window.location.pathname);
                     }
                 } catch (err: any) {
                     console.error("DAuth callback error:", err);
                     toast.error(err.message || "Failed to process DAuth login.");
+                    sessionStorage.removeItem(processedDAuthCodeKey);
                     window.history.replaceState({}, document.title, window.location.pathname);
                 } finally {
                     setIsLoading(false);
